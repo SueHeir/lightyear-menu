@@ -4,7 +4,8 @@ use std::net::IpAddr;
 use std::net::Ipv4Addr;
 use std::net::SocketAddr;
 
-
+use super::protocol::*;
+use super::renderer::ExampleRendererPlugin;
 use avian2d::prelude::*;
 use bevy::prelude::*;
 use bevy::utils::Duration;
@@ -12,10 +13,6 @@ use leafwing_input_manager::prelude::ActionState;
 use lightyear::prelude::client::*;
 use lightyear::prelude::TickManager;
 use lightyear::prelude::*;
-use super::protocol::*;
-use super::renderer::ExampleRendererPlugin;
-
-
 
 pub const SERVER_REPLICATION_INTERVAL: Duration = Duration::from_millis(20);
 pub const SERVER_ADDR: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 5000);
@@ -27,7 +24,9 @@ pub struct SharedPlugin;
 impl Plugin for SharedPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(ProtocolPlugin);
-        app.add_plugins(ExampleRendererPlugin { show_confirmed: true});
+        app.add_plugins(ExampleRendererPlugin {
+            show_confirmed: true,
+        });
         // bundles
         app.add_systems(Startup, init);
 
@@ -37,15 +36,14 @@ impl Plugin for SharedPlugin {
             transform_to_collider_scale: true,
         });
 
-         // add a log at the start of the physics schedule
-         app.add_systems(PhysicsSchedule, log.in_set(PhysicsStepSet::First));
+        // add a log at the start of the physics schedule
+        app.add_systems(PhysicsSchedule, log.in_set(PhysicsStepSet::First));
 
-         app.add_systems(FixedPostUpdate, after_physics_log);
-         app.add_systems(Last, last_log);
+        app.add_systems(FixedPostUpdate, after_physics_log);
+        app.add_systems(Last, last_log);
 
         // registry types for reflection
         app.register_type::<PlayerId>();
-
     }
 }
 
@@ -56,7 +54,6 @@ pub fn shared_config() -> SharedConfig {
         ..default()
     }
 }
-
 
 // Generate pseudo-random color from id
 pub(crate) fn color_from_id(client_id: ClientId) -> Color {
@@ -94,7 +91,6 @@ pub(crate) fn shared_movement_behaviour(
     mut velocity: Mut<LinearVelocity>,
     action: &ActionState<PlayerActions>,
 ) {
-
     velocity.y = 0.0;
     velocity.x = 0.0;
 

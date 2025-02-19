@@ -1,27 +1,21 @@
 //! The client plugin.
-use crate::{
-  GameCleanUp, MultiplayerState
-};
+use crate::{GameCleanUp, MultiplayerState};
 
 use super::{
-    protocol::{BallMarker, ColorComponent, PhysicsBundle, PlayerActions, PlayerBundle, PlayerId  },
-    shared::{shared_config, shared_movement_behaviour}, SteamworksResource,
+    protocol::{BallMarker, ColorComponent, PhysicsBundle, PlayerActions, PlayerBundle, PlayerId},
+    shared::{shared_config, shared_movement_behaviour},
+    SteamworksResource,
 };
-use avian2d::prelude::{
-    LinearVelocity, Position,
-};
+use avian2d::prelude::{LinearVelocity, Position};
 use bevy::prelude::*;
 
-use leafwing_input_manager::
-    prelude::{ActionState, InputMap}
-;
+use leafwing_input_manager::prelude::{ActionState, InputMap};
 pub use lightyear::prelude::client::*;
-use lightyear::{
-    prelude::*, transport::LOCAL_SOCKET
-};
+use lightyear::{prelude::*, transport::LOCAL_SOCKET};
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
-    str::FromStr, time::Duration,
+    str::FromStr,
+    time::Duration,
 };
 pub struct ExampleClientPlugin;
 
@@ -43,13 +37,10 @@ fn build_host_client_plugin() -> ClientPlugins {
     ClientPlugins::new(config)
 }
 
-
-
 impl Plugin for ExampleClientPlugin {
     fn build(&self, app: &mut App) {
         // add lightyear plugins
         app.add_plugins(build_host_client_plugin());
-
 
         app.add_systems(
             PreUpdate,
@@ -58,7 +49,12 @@ impl Plugin for ExampleClientPlugin {
                 .before(PredictionSet::SpawnPrediction),
         );
         // all actions related-system that can be rolled back should be in FixedUpdate schedule
-        app.add_systems(FixedUpdate, player_movement.run_if(in_state(MultiplayerState::Client).or(in_state(MultiplayerState::HostServer)))); //We want hostservers to run this
+        app.add_systems(
+            FixedUpdate,
+            player_movement.run_if(
+                in_state(MultiplayerState::Client).or(in_state(MultiplayerState::HostServer)),
+            ),
+        ); //We want hostservers to run this
         app.add_systems(
             Update,
             (
@@ -79,17 +75,18 @@ pub fn setup_client(
     mut steamworks: ResMut<SteamworksResource>,
 ) {
     if client_setup_info.steam_testing {
-
         if let Some(id) = client_setup_info.steam_connect_to {
-            let net_config = NetConfig::Steam { 
-                steamworks_client: Some(steamworks.steamworks.clone()), 
-                config: SteamConfig { 
-                    socket_config: SocketConfig::P2P { 
-                            virtual_port: 5002, 
-                            steam_id: id.raw() }, 
-                        app_id: 480 }, 
-                conditioner: None };
-            
+            let net_config = NetConfig::Steam {
+                steamworks_client: Some(steamworks.steamworks.clone()),
+                config: SteamConfig {
+                    socket_config: SocketConfig::P2P {
+                        virtual_port: 5002,
+                        steam_id: id.raw(),
+                    },
+                    app_id: 480,
+                },
+                conditioner: None,
+            };
 
             client_config.net = net_config;
 
@@ -100,12 +97,8 @@ pub fn setup_client(
             // Connect to the server
             commands.connect_client();
         }
-    
-        
 
         return;
-    
-    
     }
 
     let v4 = Ipv4Addr::from_str(&client_setup_info.address.as_str()).unwrap();
@@ -136,7 +129,11 @@ pub fn setup_client(
     let io = IoConfig {
         // the address specified here is the client_address, because we open a UDP socket on the client
         transport: transport,
-        conditioner: Some(LinkConditionerConfig { incoming_latency: Duration::from_millis(100), incoming_jitter:  Duration::from_millis(30), incoming_loss: 0.001 }),
+        conditioner: Some(LinkConditionerConfig {
+            incoming_latency: Duration::from_millis(100),
+            incoming_jitter: Duration::from_millis(30),
+            incoming_loss: 0.001,
+        }),
         ..default()
     };
     // The NetConfig specifies how we establish a connection with the server.
@@ -163,8 +160,7 @@ pub fn setup_client(
     println!("trying to connect")
 }
 
-pub fn setup_host_client(mut commands: Commands, mut client_config: ResMut<ClientConfig>,) {
-
+pub fn setup_host_client(mut commands: Commands, mut client_config: ResMut<ClientConfig>) {
     // The NetConfig specifies how we establish a connection with the server.
     // We can use either Steam (in which case we will use steam sockets and there is no need to specify
     // our own io) or Netcode (in which case we need to specify our own io).
@@ -190,16 +186,16 @@ pub(crate) fn handle_connection(
         let client_id = event.client_id();
         let y = (client_id.to_bits() as f32 * 50.0) % 500.0 - 250.0;
         // we will spawn two cubes per player, once is controlled with WASD, the other with arrows
-        commands.spawn((PlayerBundle::new(
-            client_id,
-            Vec2::new(-50.0, y),
-            InputMap::new([
-                (PlayerActions::Up, KeyCode::KeyW),
-                (PlayerActions::Down, KeyCode::KeyS),
-                (PlayerActions::Left, KeyCode::KeyA),
-                (PlayerActions::Right, KeyCode::KeyD),
-            ]),
-            
+        commands.spawn((
+            PlayerBundle::new(
+                client_id,
+                Vec2::new(-50.0, y),
+                InputMap::new([
+                    (PlayerActions::Up, KeyCode::KeyW),
+                    (PlayerActions::Down, KeyCode::KeyS),
+                    (PlayerActions::Left, KeyCode::KeyA),
+                    (PlayerActions::Right, KeyCode::KeyD),
+                ]),
             ),
             GameCleanUp,
         ));
@@ -236,7 +232,9 @@ fn add_ball_physics(
     >,
 ) {
     for entity in ball_query.iter_mut() {
-        commands.entity(entity).insert((PhysicsBundle::ball(), GameCleanUp));
+        commands
+            .entity(entity)
+            .insert((PhysicsBundle::ball(), GameCleanUp));
     }
 }
 
@@ -266,7 +264,9 @@ fn add_player_physics(
             continue;
         }
         info!(?entity, ?player_id, "adding physics to predicted player");
-        commands.entity(entity).insert((PhysicsBundle::player(), GameCleanUp));
+        commands
+            .entity(entity)
+            .insert((PhysicsBundle::player(), GameCleanUp));
     }
 }
 
@@ -287,13 +287,11 @@ fn player_movement(
     >,
 ) {
     for (entity, _player_id, position, velocity, action_state) in velocity_query.iter_mut() {
-       
         trace!(?entity, tick = ?tick_manager.tick(), ?position, actions = ?action_state.get_pressed(), "applying movement to predicted player");
         // note that we also apply the input to the other predicted clients! even though
         //  their inputs are only replicated with a delay!
         // TODO: add input decay?
         shared_movement_behaviour(velocity, action_state);
-        
     }
 }
 

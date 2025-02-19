@@ -1,10 +1,13 @@
 use std::{net::Ipv4Addr, str::FromStr};
 
 use bevy::{app::AppExit, prelude::*};
-use bevy_simple_text_input::{TextInput, TextInputSubmitEvent, TextInputSystem, TextInputTextColor, TextInputTextFont, TextInputValue};
+use bevy_simple_text_input::{
+    TextInput, TextInputSubmitEvent, TextInputSystem, TextInputTextColor, TextInputTextFont,
+    TextInputValue,
+};
 use steamworks::{FriendFlags, SteamId};
 
-use crate::{ networking::SteamworksResource, GameCleanUp, MultiplayerState};
+use crate::{networking::SteamworksResource, GameCleanUp, MultiplayerState};
 
 use super::{despawn_screen, GameState, TEXT_COLOR};
 
@@ -22,7 +25,10 @@ impl Plugin for MenuPlugin {
             // entering the `GameState::Menu` state.
             // Current screen in the menu is handled by an independent state from `GameState`
             .init_state::<MenuState>()
-            .add_systems(OnEnter(GameState::Menu), (menu_setup, despawn_screen::<GameCleanUp>))
+            .add_systems(
+                OnEnter(GameState::Menu),
+                (menu_setup, despawn_screen::<GameCleanUp>),
+            )
             // Systems to handle the main menu screen
             .add_systems(OnEnter(MenuState::Main), main_menu_setup)
             .add_systems(OnEnter(MenuState::JoinServer), join_server_menu_setup)
@@ -99,7 +105,10 @@ fn button_system(
     }
 }
 
-fn menu_setup(mut menu_state: ResMut<NextState<MenuState>>, mut multiplayer_state: ResMut<NextState<MultiplayerState>>) {
+fn menu_setup(
+    mut menu_state: ResMut<NextState<MenuState>>,
+    mut multiplayer_state: ResMut<NextState<MultiplayerState>>,
+) {
     menu_state.set(MenuState::Main);
     multiplayer_state.set(MultiplayerState::None);
 }
@@ -141,7 +150,12 @@ fn main_menu_setup(mut commands: Commands) {
                         align_items: AlignItems::Center,
                         ..default()
                     },
-                    BackgroundColor(Color::Srgba(Srgba { red: 36.0/255.0, green: 22.0/255.0, blue: 39.0/255.0, alpha: 255.0/255.0 })),
+                    BackgroundColor(Color::Srgba(Srgba {
+                        red: 36.0 / 255.0,
+                        green: 22.0 / 255.0,
+                        blue: 39.0 / 255.0,
+                        alpha: 255.0 / 255.0,
+                    })),
                 ))
                 .with_children(|parent| {
                     // Display the game name
@@ -174,7 +188,6 @@ fn main_menu_setup(mut commands: Commands) {
                                 Text::new("Play"),
                                 button_text_font.clone(),
                                 TextColor(TEXT_COLOR),
-                                
                             ));
                         });
                     parent
@@ -248,7 +261,7 @@ fn menu_action(
     mut menu_state: ResMut<NextState<MenuState>>,
     mut game_state: ResMut<NextState<GameState>>,
     mut multiplayer_state: ResMut<NextState<MultiplayerState>>,
-    mut client_setup_info: ResMut<crate::ClientConfigInfo>
+    mut client_setup_info: ResMut<crate::ClientConfigInfo>,
 ) {
     for (interaction, menu_button_action) in &interaction_query {
         if *interaction == Interaction::Pressed {
@@ -272,14 +285,11 @@ fn menu_action(
                     client_setup_info.steam_testing = true;
                     client_setup_info.steam_connect_to = Some(*id);
 
-
                     game_state.set(GameState::Game);
                     menu_state.set(MenuState::Disabled);
                     multiplayer_state.set(MultiplayerState::Client)
                 }
                 MenuButtonAction::JoinServer => {
-                    
-
                     if Ipv4Addr::from_str(&client_setup_info.address).is_ok() {
                         // client_setup_info.address = text_input_value.single().0.clone();
                         game_state.set(GameState::Game);
@@ -297,18 +307,28 @@ fn menu_action(
     }
 }
 
-
-fn join_server_menu_setup(mut commands: Commands, mut steamworks: ResMut<SteamworksResource>,) {
-
-
-
+fn join_server_menu_setup(mut commands: Commands, mut steamworks: ResMut<SteamworksResource>) {
     let mut steam_friends = Vec::new();
 
-    for friend in steamworks.steamworks.read().get_client().friends().get_friends(FriendFlags::all()) {
+    for friend in steamworks
+        .steamworks
+        .read()
+        .get_client()
+        .friends()
+        .get_friends(FriendFlags::all())
+    {
         if let Some(game_info) = friend.game_played() {
             if game_info.game.app_id().0 == 480 {
-                steam_friends.push((friend.name(),friend.id()));
-                println!("{:?} {:?} {:?} {:?} {:?} {:?}", friend.name(), friend.id(), game_info.game_address, game_info.game_port, game_info.query_port, game_info.lobby)
+                steam_friends.push((friend.name(), friend.id()));
+                println!(
+                    "{:?} {:?} {:?} {:?} {:?} {:?}",
+                    friend.name(),
+                    friend.id(),
+                    game_info.game_address,
+                    game_info.game_port,
+                    game_info.query_port,
+                    game_info.lobby
+                )
             }
         }
     }
@@ -350,30 +370,30 @@ fn join_server_menu_setup(mut commands: Commands, mut steamworks: ResMut<Steamwo
                         height: Val::Percent(100.0),
                         ..default()
                     },
-                    BackgroundColor(Color::Srgba(Srgba { red: 36.0/255.0, green: 22.0/255.0, blue: 39.0/255.0, alpha: 255.0/255.0 })),
+                    BackgroundColor(Color::Srgba(Srgba {
+                        red: 36.0 / 255.0,
+                        green: 22.0 / 255.0,
+                        blue: 39.0 / 255.0,
+                        alpha: 255.0 / 255.0,
+                    })),
                 ))
                 .with_children(|parent| {
-
-
-
                     for (friend, id) in steam_friends {
                         parent
-                        .spawn((
-                            Button,
-                            button_node.clone(),
-                            BackgroundColor(NORMAL_BUTTON),
-                            MenuButtonAction::JoinSteamFriend(id),
-                        ))
-                        .with_children(|parent| {
-                            parent.spawn((
-                                Text::new(friend),
-                                button_text_font.clone(),
-                                TextColor(TEXT_COLOR),
-                                
-                            ));
-                        });
+                            .spawn((
+                                Button,
+                                button_node.clone(),
+                                BackgroundColor(NORMAL_BUTTON),
+                                MenuButtonAction::JoinSteamFriend(id),
+                            ))
+                            .with_children(|parent| {
+                                parent.spawn((
+                                    Text::new(friend),
+                                    button_text_font.clone(),
+                                    TextColor(TEXT_COLOR),
+                                ));
+                            });
                     }
-
 
                     parent.spawn((
                         Node {
@@ -392,7 +412,7 @@ fn join_server_menu_setup(mut commands: Commands, mut steamworks: ResMut<Steamwo
                         TextInputTextColor(TextColor(TEXT_COLOR)),
                         TextInputValue("127.0.0.1".to_string()),
                     ));
-                   
+
                     parent
                         .spawn((
                             Button,
@@ -405,7 +425,6 @@ fn join_server_menu_setup(mut commands: Commands, mut steamworks: ResMut<Steamwo
                                 Text::new("Connect"),
                                 button_text_font.clone(),
                                 TextColor(TEXT_COLOR),
-                                
                             ));
                         });
 
@@ -421,16 +440,19 @@ fn join_server_menu_setup(mut commands: Commands, mut steamworks: ResMut<Steamwo
                                 Text::new("Back"),
                                 button_text_font.clone(),
                                 TextColor(TEXT_COLOR),
-                                
                             ));
                         });
                 });
         });
 }
 
-
-fn listener(mut events: EventReader<TextInputSubmitEvent>, mut client_setup_info: ResMut<crate::ClientConfigInfo>, mut game_state: ResMut<NextState<GameState>>,
-    mut multiplayer_state: ResMut<NextState<MultiplayerState>>, mut menu_state: ResMut<NextState<MenuState>>,) {
+fn listener(
+    mut events: EventReader<TextInputSubmitEvent>,
+    mut client_setup_info: ResMut<crate::ClientConfigInfo>,
+    mut game_state: ResMut<NextState<GameState>>,
+    mut multiplayer_state: ResMut<NextState<MultiplayerState>>,
+    mut menu_state: ResMut<NextState<MenuState>>,
+) {
     for event in events.read() {
         client_setup_info.address = event.value.clone();
 

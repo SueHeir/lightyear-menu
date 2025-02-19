@@ -59,7 +59,6 @@ fn add_visual_interpolation_components(
     ));
 }
 
-
 /// System that draws the outlines of confirmed entities, with lines to the centre of their predicted location.
 pub(crate) fn draw_confirmed_shadows(
     mut gizmos: Gizmos,

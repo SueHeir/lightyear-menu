@@ -1,19 +1,16 @@
-
+mod camera;
 mod menu;
 mod networking;
-mod camera;
-
 
 use avian2d::prelude::*;
 use bevy::prelude::*;
 use bevy_simple_text_input::TextInputPlugin;
 
 // use iyes_perf_ui::PerfUiPlugin;
+use camera::CameraPlugin;
 use menu::MenuPlugin;
 use networking::NetworkingPlugin;
-use camera::CameraPlugin;
 use steamworks::SteamId;
-
 
 #[derive(Component)]
 pub struct GameCleanUp;
@@ -48,7 +45,6 @@ struct ClientConfigInfo {
 }
 
 fn main() {
-
     let client_config = ClientConfigInfo {
         address: "127.0.0.1".to_string(),
         port: "5000".to_string(),
@@ -59,39 +55,27 @@ fn main() {
 
     App::new()
         //Bevy Setup
-        .add_plugins(
-            DefaultPlugins
-                .set(WindowPlugin {
-                    primary_window: Some(Window {
-                        title: "Menu Example".to_string(),
-                        ..Default::default()
-                    }),
-                    ..Default::default()
-                }),
-        )
-        
+        .add_plugins(DefaultPlugins.set(WindowPlugin {
+            primary_window: Some(Window {
+                title: "Menu Example".to_string(),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }))
         //Avian Physics
-        .add_plugins(
-            PhysicsPlugins::default()
-                .build(),
-        )
+        .add_plugins(PhysicsPlugins::default().build())
         .insert_resource(Gravity(Vec2::ZERO))
         .add_plugins(PhysicsDebugPlugin::default())
-
         //Lightyear Setup
         .add_plugins(NetworkingPlugin)
         .insert_resource(client_config)
-
-        
         //Menu Setup
         .init_state::<GameState>()
         .init_state::<MultiplayerState>()
         .add_plugins(MenuPlugin)
         .add_plugins(TextInputPlugin) //For IP Address Input
-        
         //Game Setup
         .add_plugins(CameraPlugin)
-
         // .add_plugins(WorldInspectorPlugin::new())
         .run();
 }

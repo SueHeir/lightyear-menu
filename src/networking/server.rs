@@ -7,7 +7,7 @@
 //!
 //! Lightyear will handle the replication of entities automatically if you add a `Replicate` component to them.
 use crate::networking::shared::shared_movement_behaviour;
-use crate::{GameCleanUp, GameState, MultiplayerState};
+use crate::{GameCleanUp, MultiplayerState};
 use bevy::color::palettes::css;
 use bevy::prelude::*;
 use lightyear::connection::server::{ConnectionRequestHandler, DeniedReason};
@@ -26,11 +26,7 @@ use avian2d::prelude::*;
 use leafwing_input_manager::prelude::*;
 use lightyear::shared::replication::components::InitialReplicated;
 
-use super::shared::{
-    shared_config, SERVER_ADDR,
-};
-
-
+use super::shared::{shared_config, SERVER_ADDR};
 
 #[derive(Resource)]
 pub struct Global {
@@ -43,12 +39,18 @@ pub struct ExampleServerPlugin {
 }
 
 /// Here we create the lightyear [`ServerPlugins`]
-fn build_server_plugin(steam_client: Arc<parking_lot::lock_api::RwLock<parking_lot::RawRwLock, SteamworksClient>>) -> ServerPlugins{
+fn build_server_plugin(
+    steam_client: Arc<parking_lot::lock_api::RwLock<parking_lot::RawRwLock, SteamworksClient>>,
+) -> ServerPlugins {
     // The IoConfig will specify the transport to use.
     let io = IoConfig {
         // the address specified here is the server_address, because we open a UDP socket on the server
         transport: ServerTransport::UdpSocket(SERVER_ADDR),
-        conditioner: Some(LinkConditionerConfig { incoming_latency: Duration::from_millis(80), incoming_jitter:  Duration::from_millis(10), incoming_loss: 0.001 }),
+        conditioner: Some(LinkConditionerConfig {
+            incoming_latency: Duration::from_millis(80),
+            incoming_jitter: Duration::from_millis(10),
+            incoming_loss: 0.001,
+        }),
         ..default()
     };
     // The NetConfig specifies how we establish a connection with the server.
@@ -59,17 +61,17 @@ fn build_server_plugin(steam_client: Arc<parking_lot::lock_api::RwLock<parking_l
         config: NetcodeConfig::default(),
     };
 
-    let steam_config = NetConfig::Steam { 
-        steamworks_client: Some(steam_client.clone()), 
-        config: SteamConfig { 
-            app_id: 480, 
-            socket_config: SocketConfig::P2P { virtual_port: 5002 },//SocketConfig::Ip { server_ip: Ipv4Addr::UNSPECIFIED, game_port: 5003, query_port: 27016 }, 
-            max_clients: 10, 
-            connection_request_handler: Arc::new(GnomellaConnectionRequestHandler), 
-            version: "0.0.1".to_string() 
-        }, 
-        conditioner: None };
-
+    let steam_config = NetConfig::Steam {
+        steamworks_client: Some(steam_client.clone()),
+        config: SteamConfig {
+            app_id: 480,
+            socket_config: SocketConfig::P2P { virtual_port: 5002 }, //SocketConfig::Ip { server_ip: Ipv4Addr::UNSPECIFIED, game_port: 5003, query_port: 27016 },
+            max_clients: 10,
+            connection_request_handler: Arc::new(GnomellaConnectionRequestHandler),
+            version: "0.0.1".to_string(),
+        },
+        conditioner: None,
+    };
 
     let config = ServerConfig {
         // part of the config needs to be shared between the client and server
@@ -88,7 +90,6 @@ fn build_server_plugin(steam_client: Arc<parking_lot::lock_api::RwLock<parking_l
 
 impl Plugin for ExampleServerPlugin {
     fn build(&self, app: &mut App) {
-
         app.insert_resource(Global {
             predict_all: self.predict_all,
         });
@@ -109,15 +110,15 @@ impl Plugin for ExampleServerPlugin {
             replicate_players.in_set(ServerReplicationSet::ClientReplication),
         );
         // the physics/FixedUpdates systems that consume inputs should be run in this set
-        app.add_systems(FixedUpdate, movement.run_if(in_state(MultiplayerState::Server).or(in_state(MultiplayerState::Server))));
-
+        app.add_systems(
+            FixedUpdate,
+            movement
+                .run_if(in_state(MultiplayerState::Server).or(in_state(MultiplayerState::Server))),
+        );
     }
 }
 
-pub fn setup_server(
-    mut commands: Commands,
-    mut server_config: ResMut<ServerConfig>,
-) {
+pub fn setup_server(mut commands: Commands, mut server_config: ResMut<ServerConfig>) {
     let port = "5000".parse::<u16>().unwrap();
 
     let server_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), port);
@@ -140,12 +141,9 @@ pub fn setup_server(
     server_config.net.remove(1);
     server_config.net.push(net_config);
 
-
     // Start the server
     commands.start_server();
 }
-
-
 
 /// By default, all connection requests are accepted by the server.
 #[derive(Debug, Clone)]
@@ -159,12 +157,15 @@ impl ConnectionRequestHandler for GnomellaConnectionRequestHandler {
 
 fn init(mut commands: Commands, global: Res<Global>) {
     // the ball is server-authoritative
-    commands.spawn((BallBundle::new(
-        Vec2::new(0.0, 0.0),
-        css::AZURE.into(),
-        // if true, we predict the ball on clients
-        global.predict_all,
-    ), GameCleanUp));
+    commands.spawn((
+        BallBundle::new(
+            Vec2::new(0.0, 0.0),
+            css::AZURE.into(),
+            // if true, we predict the ball on clients
+            global.predict_all,
+        ),
+        GameCleanUp,
+    ));
 }
 
 /// Read client inputs and move players
@@ -184,12 +185,10 @@ pub(crate) fn movement(
     >,
 ) {
     for (entity, position, velocity, action) in action_query.iter_mut() {
-      
         // NOTE: be careful to directly pass Mut<PlayerPosition>
         // getting a mutable reference triggers change detection, unless you use `as_deref_mut()`
         shared_movement_behaviour(velocity, action);
         trace!(?entity, tick = ?tick_manager.tick(), ?position, actions = ?action.get_pressed(), "applying movement to player");
-        
     }
 }
 

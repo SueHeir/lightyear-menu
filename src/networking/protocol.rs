@@ -4,13 +4,11 @@ use leafwing_input_manager::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use lightyear::client::components::ComponentSyncMode;
+use lightyear::prelude::server::{Replicate, SyncTarget};
 use lightyear::prelude::*;
 use lightyear::utils::avian2d::*;
-use lightyear::prelude::server::{Replicate, SyncTarget};
-
 
 use super::shared::color_from_id;
-
 
 pub const BALL_SIZE: f32 = 15.0;
 pub const PLAYER_SIZE: f32 = 40.0;
@@ -29,7 +27,7 @@ pub(crate) struct PlayerBundle {
     replicate: client::Replicate,
     physics: PhysicsBundle,
     inputs: InputManagerBundle<PlayerActions>,
-   
+
     // IMPORTANT: this lets the server know that the entity is pre-predicted
     // when the server replicates this entity; we will get a Confirmed entity which will use this entity
     // as the Predicted version
