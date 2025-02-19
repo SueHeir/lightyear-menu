@@ -3211,7 +3211,7 @@ dependencies = [
 [[package]]
 name = "lightyear"
 version = "0.19.0"
-source = "git+https://github.com/cBournhonesque/lightyear.git#d439dd971ffbe32742f547ac4ae08e79d0b21630"
+source = "git+https://github.com/SueHeir/lightyear.git#4fd9c816b882bad06e08f70c01256b0420a11e65"
 dependencies = [
  "async-channel",
  "async-compat",
@@ -3268,7 +3268,7 @@ dependencies = [
 [[package]]
 name = "lightyear_macros"
 version = "0.19.0"
-source = "git+https://github.com/cBournhonesque/lightyear.git#d439dd971ffbe32742f547ac4ae08e79d0b21630"
+source = "git+https://github.com/SueHeir/lightyear.git#4fd9c816b882bad06e08f70c01256b0420a11e65"
 dependencies = [
  "proc-macro2",
  "quote",
