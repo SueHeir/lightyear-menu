@@ -2,7 +2,7 @@ use bevy::prelude::*;
 // use iyes_perf_ui::prelude::{PerfUiEntryFPS, PerfUiRoot, PerfUiWidgetBar};
 use lightyear::{prelude::client::Predicted, shared::replication::components::Controlled};
 
-use crate::{networking::protocol::PlayerNetworkInfo, GameState};
+use crate::{networking::protocol::PlayerId, GameState};
  
 #[derive(Component)]
 pub struct OuterCamera;
@@ -37,8 +37,8 @@ fn setup_camera(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
 
 fn camera_follow_player(
     // local_players: Res<LocalPlayers>,
-    players: Query<(&PlayerNetworkInfo, &Transform, Has<Controlled>), With<Predicted>>,
-    mut cameras: Query<(&mut Transform, &OrthographicProjection), (With<OuterCamera>, Without<PlayerNetworkInfo>)>,
+    players: Query<(&PlayerId, &Transform, Has<Controlled>), With<Predicted>>,
+    mut cameras: Query<(&mut Transform, &OrthographicProjection), (With<OuterCamera>, Without<PlayerId>)>,
 ) {
     for (_player, player_transform, controlled) in players.iter() {
 

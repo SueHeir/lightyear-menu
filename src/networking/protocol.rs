@@ -8,34 +8,126 @@ use serde::{Deserialize, Serialize};
 use lightyear::client::components::{ComponentSyncMode, LerpFn};
 use lightyear::prelude::*;
 use lightyear::utils::avian2d::*;
+use lightyear::prelude::server::{Replicate, SyncTarget};
 use lightyear::utils::bevy::TransformLinearInterpolation;
 
+use super::shared::color_from_id;
+
+
+pub const BALL_SIZE: f32 = 15.0;
+pub const PLAYER_SIZE: f32 = 40.0;
 
 // For prediction, we want everything entity that is predicted to be part of the same replication group
 // This will make sure that they will be replicated in the same message and that all the entities in the group
 // will always be consistent (= on the same tick)
 pub const REPLICATION_GROUP: ReplicationGroup = ReplicationGroup::new_id(1);
 
-
-// Components
-#[derive(Component, Serialize, Deserialize, Clone, Debug, PartialEq, Reflect)]
-pub struct PlayerNetworkInfo {
-    pub client_id: ClientId,
-    pub nickname: String,
-    pub rtt: Duration,
-    pub jitter: Duration,
+// Player
+#[derive(Bundle)]
+pub(crate) struct PlayerBundle {
+    id: PlayerId,
+    position: Position,
+    color: ColorComponent,
+    replicate: client::Replicate,
+    physics: PhysicsBundle,
+    inputs: InputManagerBundle<PlayerActions>,
+    // IMPORTANT: this lets the server know that the entity is pre-predicted
+    // when the server replicates this entity; we will get a Confirmed entity which will use this entity
+    // as the Predicted version
+    pre_predicted: PrePredicted,
+    name: Name,
 }
 
-impl PlayerNetworkInfo {
-    pub fn new(client_id: ClientId, nickname: String) -> Self {
+impl PlayerBundle {
+    pub(crate) fn new(id: ClientId, position: Vec2, input_map: InputMap<PlayerActions>) -> Self {
+        let color = color_from_id(id);
         Self {
-            client_id,
-            nickname,
-            rtt: Duration::ZERO,
-            jitter: Duration::ZERO,
+            id: PlayerId(id),
+            position: Position(position),
+            color: ColorComponent(color),
+            replicate: client::Replicate::default(),
+            physics: PhysicsBundle::player(),
+            inputs: InputManagerBundle::<PlayerActions> {
+                action_state: ActionState::default(),
+                input_map,
+            },
+            pre_predicted: PrePredicted::default(),
+            name: Name::from("Player"),
         }
     }
 }
+
+// Ball
+#[derive(Bundle)]
+pub(crate) struct BallBundle {
+    position: Position,
+    color: ColorComponent,
+    replicate: Replicate,
+    marker: BallMarker,
+    physics: PhysicsBundle,
+    name: Name,
+}
+
+impl BallBundle {
+    pub(crate) fn new(position: Vec2, color: Color, predicted: bool) -> Self {
+        let mut sync_target = SyncTarget::default();
+        let mut group = ReplicationGroup::default();
+        if predicted {
+            sync_target.prediction = NetworkTarget::All;
+            group = REPLICATION_GROUP;
+        } else {
+            sync_target.interpolation = NetworkTarget::All;
+        }
+        let replicate = Replicate {
+            sync: sync_target,
+            group,
+            ..default()
+        };
+        Self {
+            position: Position(position),
+            color: ColorComponent(color),
+            replicate,
+            physics: PhysicsBundle::ball(),
+            marker: BallMarker,
+            name: Name::from("Ball"),
+        }
+    }
+}
+
+#[derive(Bundle)]
+pub(crate) struct PhysicsBundle {
+    pub(crate) collider: Collider,
+    pub(crate) collider_density: ColliderDensity,
+    pub(crate) rigid_body: RigidBody,
+}
+
+impl PhysicsBundle {
+    pub(crate) fn ball() -> Self {
+        Self {
+            collider: Collider::circle(BALL_SIZE),
+            collider_density: ColliderDensity(0.05),
+            rigid_body: RigidBody::Dynamic,
+        }
+    }
+
+    pub(crate) fn player() -> Self {
+        Self {
+            collider: Collider::rectangle(PLAYER_SIZE, PLAYER_SIZE),
+            collider_density: ColliderDensity(0.2),
+            rigid_body: RigidBody::Dynamic,
+        }
+    }
+}
+
+// Components
+#[derive(Component, Serialize, Deserialize, Clone, Debug, PartialEq, Reflect)]
+pub struct PlayerId(pub ClientId);
+
+#[derive(Component, Deserialize, Serialize, Clone, Debug, PartialEq)]
+pub struct ColorComponent(pub(crate) Color);
+
+#[derive(Component, Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct BallMarker;
 
 // Channels
 
@@ -49,83 +141,42 @@ pub struct Message1(pub usize);
 
 // Inputs
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Copy, Hash, Reflect)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Copy, Hash, Reflect, Actionlike)]
 pub enum PlayerActions {
-    Move,
-    RespawnRequest,
+    Up,
+    Down,
+    Left,
+    Right,
 }
 
-impl Actionlike for PlayerActions {
-    fn input_control_kind(&self) -> InputControlKind {
-        match self {
-            Self::Move => InputControlKind::DualAxis,
-            _ => InputControlKind::Button,
-        }
-    }
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Copy, Hash, Reflect, Actionlike)]
+pub enum AdminActions {
+    SendMessage,
+    Reset,
 }
-
-
-
-
-
-// Limiting firing rate: once you fire on `last_fire_tick` you have to wait `cooldown` ticks before firing again.
-#[derive(Component, Serialize, Deserialize, Clone, Debug, PartialEq)]
-pub struct ActionTracker {
-    pub action1_last_tick: Tick,
-    pub action2_last_tick: Tick,
-    pub action1_cooldown: u16,
-    pub action2_cooldown: u16,
-    pub action1_max_channel: u16,
-    pub action2_max_channel: u16,
-}
-
-impl ActionTracker {
-    pub(crate) fn new(cooldown: (u16, u16), max_channel: (u16, u16)) -> Self {
-        Self {
-            action1_last_tick: Tick(0),
-            action2_last_tick: Tick(0),
-            action1_cooldown: cooldown.0,
-            action2_cooldown: cooldown.1,
-            action1_max_channel: max_channel.0,
-            action2_max_channel: max_channel.1,
-        }
-    }
-}
-
-// despawns `lifetime` ticks after `origin_tick`
-#[derive(Component, Serialize, Deserialize, Clone, Debug, PartialEq)]
-pub(crate) struct Lifetime {
-    pub(crate) origin_tick: Tick,
-    /// number of ticks to live for
-    pub(crate) lifetime: i16,
-}
-
-
 
 // Protocol
 pub(crate) struct ProtocolPlugin;
 
 impl Plugin for ProtocolPlugin {
     fn build(&self, app: &mut App) {
+        // messages
+        app.register_message::<Message1>(ChannelDirection::Bidirectional);
         // inputs
         app.add_plugins(LeafwingInputPlugin::<PlayerActions>::default());
+        app.add_plugins(LeafwingInputPlugin::<AdminActions>::default());
         // components
+        app.register_component::<PlayerId>(ChannelDirection::Bidirectional)
+            .add_prediction(ComponentSyncMode::Once)
+            .add_interpolation(ComponentSyncMode::Once);
 
-        // Player is synced as Simple, because we periodically update rtt ping stats
-        app.register_component::<PlayerNetworkInfo>(ChannelDirection::Bidirectional)
-            .add_prediction(ComponentSyncMode::Simple);
+        app.register_component::<ColorComponent>(ChannelDirection::Bidirectional)
+            .add_prediction(ComponentSyncMode::Once)
+            .add_interpolation(ComponentSyncMode::Once);
 
-
-        app.register_component::<Lifetime>(ChannelDirection::Bidirectional)
-            .add_prediction(ComponentSyncMode::Once);
-
-        app.register_component::<ActionTracker>(ChannelDirection::Bidirectional)
-            .add_prediction(ComponentSyncMode::Full);
-
-        // NOTE: interpolation/correction is only needed for components that are visually displayed!
-        // we still need prediction to be able to correctly predict the physics on the client
-        app.register_component::<LinearVelocity>(ChannelDirection::Bidirectional)
-            .add_prediction(ComponentSyncMode::Full);
+        app.register_component::<BallMarker>(ChannelDirection::Bidirectional)
+            .add_prediction(ComponentSyncMode::Once)
+            .add_interpolation(ComponentSyncMode::Once);
 
         app.register_component::<Position>(ChannelDirection::Bidirectional)
             .add_prediction(ComponentSyncMode::Full)
@@ -135,14 +186,17 @@ impl Plugin for ProtocolPlugin {
 
         app.register_component::<Rotation>(ChannelDirection::Bidirectional)
             .add_prediction(ComponentSyncMode::Full)
+            .add_interpolation(ComponentSyncMode::Full)
             .add_interpolation_fn(rotation::lerp)
             .add_correction_fn(rotation::lerp);
 
-        // do not replicate Transform but make sure to register an interpolation function
-        // for it so that we can do visual interpolation
-        // (another option would be to replicate transform and not use Position/Rotation at all)
-        app.add_interpolation::<Transform>(ComponentSyncMode::None);
-        app.add_interpolation_fn::<Transform>(TransformLinearInterpolation::lerp);
+        // NOTE: interpolation/correction is only needed for components that are visually displayed!
+        // we still need prediction to be able to correctly predict the physics on the client
+        app.register_component::<LinearVelocity>(ChannelDirection::Bidirectional)
+            .add_prediction(ComponentSyncMode::Full);
+
+        app.register_component::<AngularVelocity>(ChannelDirection::Bidirectional)
+            .add_prediction(ComponentSyncMode::Full);
 
         // channels
         app.add_channel::<Channel1>(ChannelSettings {

@@ -14,7 +14,9 @@ pub mod client;
 pub mod protocol;
 mod server;
 mod shared;
+mod renderer;
 use shared::SharedPlugin;
+
 
 
 

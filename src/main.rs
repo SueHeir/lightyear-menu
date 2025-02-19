@@ -84,7 +84,7 @@ fn main() {
                 .build(),
         )
         .insert_resource(Gravity(Vec2::ZERO))
-        .add_plugins(PhysicsDebugPlugin::default())
+        // .add_plugins(PhysicsDebugPlugin::default())
 
         //Lightyear Setup
         .add_plugins(NetworkingPlugin)
