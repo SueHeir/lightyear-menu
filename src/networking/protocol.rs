@@ -1,15 +1,13 @@
-use std::time::Duration;
-
 use avian2d::prelude::*;
 use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use lightyear::client::components::{ComponentSyncMode, LerpFn};
+use lightyear::client::components::ComponentSyncMode;
 use lightyear::prelude::*;
 use lightyear::utils::avian2d::*;
 use lightyear::prelude::server::{Replicate, SyncTarget};
-use lightyear::utils::bevy::TransformLinearInterpolation;
+
 
 use super::shared::color_from_id;
 
@@ -31,6 +29,7 @@ pub(crate) struct PlayerBundle {
     replicate: client::Replicate,
     physics: PhysicsBundle,
     inputs: InputManagerBundle<PlayerActions>,
+   
     // IMPORTANT: this lets the server know that the entity is pre-predicted
     // when the server replicates this entity; we will get a Confirmed entity which will use this entity
     // as the Predicted version
@@ -99,6 +98,7 @@ pub(crate) struct PhysicsBundle {
     pub(crate) collider: Collider,
     pub(crate) collider_density: ColliderDensity,
     pub(crate) rigid_body: RigidBody,
+    pub(crate) rotation_lock: LockedAxes,
 }
 
 impl PhysicsBundle {
@@ -107,6 +107,7 @@ impl PhysicsBundle {
             collider: Collider::circle(BALL_SIZE),
             collider_density: ColliderDensity(0.05),
             rigid_body: RigidBody::Dynamic,
+            rotation_lock: LockedAxes::ROTATION_LOCKED,
         }
     }
 
@@ -115,6 +116,7 @@ impl PhysicsBundle {
             collider: Collider::rectangle(PLAYER_SIZE, PLAYER_SIZE),
             collider_density: ColliderDensity(0.2),
             rigid_body: RigidBody::Dynamic,
+            rotation_lock: LockedAxes::ROTATION_LOCKED,
         }
     }
 }

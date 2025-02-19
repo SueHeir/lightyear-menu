@@ -3,16 +3,9 @@ mod menu;
 mod networking;
 mod camera;
 
-use std::env;
 
-use avian2d::{math::*, prelude::*};
-use bevy::{color::palettes, prelude::*, window::{WindowMode, WindowResolution}, winit::WinitSettings};
-
-
-use bevy_inspector_egui::{
-    quick::{ResourceInspectorPlugin, WorldInspectorPlugin},
-    InspectorOptions,
-};
+use avian2d::prelude::*;
+use bevy::prelude::*;
 use bevy_simple_text_input::TextInputPlugin;
 
 // use iyes_perf_ui::PerfUiPlugin;
@@ -44,8 +37,8 @@ enum MultiplayerState {
 
 const TEXT_COLOR: Color = Color::srgb(0.9, 0.9, 0.9);
 
-// `InspectorOptions` are completely optional
-#[derive(Resource, Default, InspectorOptions)]
+// Default setting for local testing (multiple instances on the same computer)
+#[derive(Resource, Default)]
 struct ClientConfigInfo {
     address: String,
     port: String,
@@ -59,7 +52,7 @@ fn main() {
     let client_config = ClientConfigInfo {
         address: "127.0.0.1".to_string(),
         port: "5000".to_string(),
-        local_testing: true, //Change this to false for release build
+        local_testing: true, //Change this to false for testing across multiple computers
         steam_testing: false,
         steam_connect_to: None,
     };
@@ -80,11 +73,10 @@ fn main() {
         //Avian Physics
         .add_plugins(
             PhysicsPlugins::default()
-                // .with_length_unit(100.0)
                 .build(),
         )
         .insert_resource(Gravity(Vec2::ZERO))
-        // .add_plugins(PhysicsDebugPlugin::default())
+        .add_plugins(PhysicsDebugPlugin::default())
 
         //Lightyear Setup
         .add_plugins(NetworkingPlugin)

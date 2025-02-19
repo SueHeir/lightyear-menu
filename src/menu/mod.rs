@@ -1,8 +1,7 @@
 use std::{net::Ipv4Addr, str::FromStr};
 
-use bevy::{app::AppExit, color::palettes::css::CRIMSON, prelude::*};
+use bevy::{app::AppExit, prelude::*};
 use bevy_simple_text_input::{TextInput, TextInputSubmitEvent, TextInputSystem, TextInputTextColor, TextInputTextFont, TextInputValue};
-use lightyear::connection::steam;
 use steamworks::{FriendFlags, SteamId};
 
 use crate::{ networking::SteamworksResource, GameCleanUp, MultiplayerState};
@@ -65,7 +64,6 @@ const HOVERED_PRESSED_BUTTON: Color = Color::srgb(0.25, 0.65, 0.25);
 const PRESSED_BUTTON: Color = Color::srgb(0.35, 0.75, 0.35);
 
 const BORDER_COLOR_ACTIVE: Color = Color::srgb(0.75, 0.52, 0.99);
-const BORDER_COLOR_INACTIVE: Color = Color::srgb(0.25, 0.25, 0.25);
 const BACKGROUND_COLOR: Color = Color::srgb(0.15, 0.15, 0.15);
 
 // Tag component used to mark which setting is currently selected
@@ -250,7 +248,6 @@ fn menu_action(
     mut menu_state: ResMut<NextState<MenuState>>,
     mut game_state: ResMut<NextState<GameState>>,
     mut multiplayer_state: ResMut<NextState<MultiplayerState>>,
-    text_input_value: Query<&TextInputValue>,
     mut client_setup_info: ResMut<crate::ClientConfigInfo>
 ) {
     for (interaction, menu_button_action) in &interaction_query {

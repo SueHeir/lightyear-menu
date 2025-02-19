@@ -2,7 +2,6 @@ use avian2d::position::{Position, Rotation};
 use avian2d::prelude::LinearVelocity;
 use bevy::color::palettes::css;
 use bevy::prelude::*;
-use bevy::render::RenderPlugin;
 use lightyear::client::components::Confirmed;
 use lightyear::client::interpolation::VisualInterpolateStatus;
 use lightyear::client::prediction::Predicted;

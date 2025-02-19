@@ -7,28 +7,27 @@
 //!
 //! Lightyear will handle the replication of entities automatically if you add a `Replicate` component to them.
 use crate::networking::shared::shared_movement_behaviour;
-use crate::{GameCleanUp, MultiplayerState};
+use crate::{GameCleanUp, GameState, MultiplayerState};
 use bevy::color::palettes::css;
 use bevy::prelude::*;
 use lightyear::connection::server::{ConnectionRequestHandler, DeniedReason};
-use lightyear::inputs::leafwing::{input_buffer::InputBuffer, input_message::InputTarget};
 use lightyear::prelude::client::{Confirmed, Predicted};
 use lightyear::prelude::server::*;
 use lightyear::prelude::*;
 use lightyear::server::input::leafwing::InputSystemSet;
 
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-use std::sync::{Arc};
+use std::sync::Arc;
 use std::time::Duration;
 
 use super::protocol::*;
 use avian2d::prelude::*;
 
 use leafwing_input_manager::prelude::*;
-use lightyear::shared::replication::components::{Controlled, InitialReplicated};
+use lightyear::shared::replication::components::InitialReplicated;
 
 use super::shared::{
-    shared_config, SERVER_ADDR, SERVER_REPLICATION_INTERVAL,
+    shared_config, SERVER_ADDR,
 };
 
 
@@ -96,6 +95,8 @@ impl Plugin for ExampleServerPlugin {
         // add lightyear plugins
         app.add_plugins(build_server_plugin(self.steam_client.clone()));
 
+        // app.add_systems(OnEnter(GameState::Game), init.run_if(in_state(MultiplayerState::Server).or(in_state(MultiplayerState::HostServer))));
+
         app.add_systems(
             PreUpdate,
             // this system will replicate the inputs of a client to other clients
@@ -108,7 +109,7 @@ impl Plugin for ExampleServerPlugin {
             replicate_players.in_set(ServerReplicationSet::ClientReplication),
         );
         // the physics/FixedUpdates systems that consume inputs should be run in this set
-        app.add_systems(FixedUpdate, movement);
+        app.add_systems(FixedUpdate, movement.run_if(in_state(MultiplayerState::Server).or(in_state(MultiplayerState::Server))));
 
     }
 }
@@ -151,19 +152,19 @@ pub fn setup_server(
 pub struct GnomellaConnectionRequestHandler;
 
 impl ConnectionRequestHandler for GnomellaConnectionRequestHandler {
-    fn handle_request(&self, client_id: ClientId) -> Option<DeniedReason> {
+    fn handle_request(&self, _client_id: ClientId) -> Option<DeniedReason> {
         None
     }
 }
 
 fn init(mut commands: Commands, global: Res<Global>) {
     // the ball is server-authoritative
-    commands.spawn(BallBundle::new(
+    commands.spawn((BallBundle::new(
         Vec2::new(0.0, 0.0),
         css::AZURE.into(),
         // if true, we predict the ball on clients
         global.predict_all,
-    ));
+    ), GameCleanUp));
 }
 
 /// Read client inputs and move players
@@ -248,6 +249,7 @@ pub(crate) fn replicate_players(
             };
             e.insert((
                 replicate,
+                GameCleanUp,
                 // if we receive a pre-predicted entity, only send the prepredicted component back
                 // to the original client
                 OverrideTargetComponent::<PrePredicted>::new(NetworkTarget::Single(client_id)),

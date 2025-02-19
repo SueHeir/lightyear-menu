@@ -1,6 +1,6 @@
 //! The client plugin.
 use crate::{
-  camera::OuterCamera, GameCleanUp, GameState, MultiplayerState
+  GameCleanUp, MultiplayerState
 };
 
 use super::{
@@ -8,27 +8,22 @@ use super::{
     shared::{shared_config, shared_movement_behaviour}, SteamworksResource,
 };
 use avian2d::prelude::{
-    Collider, ColliderDensity, CollidingEntities, LinearVelocity, LockedAxes, Position, RigidBody,
-    Sensor,
+    LinearVelocity, Position,
 };
-use bevy::{prelude::*, utils::hashbrown::Equivalent};
+use bevy::prelude::*;
 
-use leafwing_input_manager::{
-    plugin::InputManagerSystem,
-    prelude::{ActionState, InputMap, VirtualDPad},
-};
+use leafwing_input_manager::
+    prelude::{ActionState, InputMap}
+;
 pub use lightyear::prelude::client::*;
 use lightyear::{
-    client::input::leafwing::InputSystemSet, connection::steam, inputs::leafwing::input_buffer::InputBuffer, prelude::*, shared::replication::components::Controlled, transport::LOCAL_SOCKET
+    prelude::*, transport::LOCAL_SOCKET
 };
-use steamworks::{AppId, FriendFlags, GameId, SteamId};
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
-    str::FromStr, sync::Arc, time::Duration,
+    str::FromStr, time::Duration,
 };
-pub struct ExampleClientPlugin {
-    pub steam_client: Arc<parking_lot::lock_api::RwLock<parking_lot::RawRwLock, SteamworksClient>>,
-}
+pub struct ExampleClientPlugin;
 
 /// Here we create the lightyear [`ClientPlugins`]
 fn build_host_client_plugin() -> ClientPlugins {
@@ -56,9 +51,6 @@ impl Plugin for ExampleClientPlugin {
         app.add_plugins(build_host_client_plugin());
 
 
-
-      
-
         app.add_systems(
             PreUpdate,
             handle_connection
@@ -66,15 +58,15 @@ impl Plugin for ExampleClientPlugin {
                 .before(PredictionSet::SpawnPrediction),
         );
         // all actions related-system that can be rolled back should be in FixedUpdate schedule
-        app.add_systems(FixedUpdate, player_movement);
+        app.add_systems(FixedUpdate, player_movement.run_if(in_state(MultiplayerState::Client).or(in_state(MultiplayerState::HostServer)))); //We want hostservers to run this
         app.add_systems(
             Update,
             (
-                add_ball_physics,
-                add_player_physics,
+                add_ball_physics.run_if(in_state(MultiplayerState::Client)),
+                add_player_physics.run_if(in_state(MultiplayerState::Client)),
                 // send_message,
-                handle_predicted_spawn,
-                handle_interpolated_spawn,
+                handle_predicted_spawn.run_if(in_state(MultiplayerState::Client)),
+                handle_interpolated_spawn.run_if(in_state(MultiplayerState::Client)),
             ),
         );
     }
@@ -198,7 +190,7 @@ pub(crate) fn handle_connection(
         let client_id = event.client_id();
         let y = (client_id.to_bits() as f32 * 50.0) % 500.0 - 250.0;
         // we will spawn two cubes per player, once is controlled with WASD, the other with arrows
-        commands.spawn(PlayerBundle::new(
+        commands.spawn((PlayerBundle::new(
             client_id,
             Vec2::new(-50.0, y),
             InputMap::new([
@@ -207,6 +199,9 @@ pub(crate) fn handle_connection(
                 (PlayerActions::Left, KeyCode::KeyA),
                 (PlayerActions::Right, KeyCode::KeyD),
             ]),
+            
+            ),
+            GameCleanUp,
         ));
         // commands.spawn((PlayerBundle::new(
         //     client_id,
@@ -241,7 +236,7 @@ fn add_ball_physics(
     >,
 ) {
     for entity in ball_query.iter_mut() {
-        commands.entity(entity).insert(PhysicsBundle::ball());
+        commands.entity(entity).insert((PhysicsBundle::ball(), GameCleanUp));
     }
 }
 
@@ -271,7 +266,7 @@ fn add_player_physics(
             continue;
         }
         info!(?entity, ?player_id, "adding physics to predicted player");
-        commands.entity(entity).insert(PhysicsBundle::player());
+        commands.entity(entity).insert((PhysicsBundle::player(), GameCleanUp));
     }
 }
 
@@ -291,7 +286,7 @@ fn player_movement(
         With<Predicted>,
     >,
 ) {
-    for (entity, player_id, position, velocity, action_state) in velocity_query.iter_mut() {
+    for (entity, _player_id, position, velocity, action_state) in velocity_query.iter_mut() {
        
         trace!(?entity, tick = ?tick_manager.tick(), ?position, actions = ?action_state.get_pressed(), "applying movement to predicted player");
         // note that we also apply the input to the other predicted clients! even though

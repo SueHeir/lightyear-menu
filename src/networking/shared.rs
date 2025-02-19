@@ -4,28 +4,19 @@ use std::net::IpAddr;
 use std::net::Ipv4Addr;
 use std::net::SocketAddr;
 
-use avian2d::math::AdjustPrecision;
-use avian2d::math::Scalar;
+
 use avian2d::prelude::*;
-use bevy::ecs::entity::Entities;
-use bevy::ecs::query::QueryData;
 use bevy::prelude::*;
 use bevy::utils::Duration;
-
 use leafwing_input_manager::prelude::ActionState;
-use lightyear::prelude::server::ReplicationTarget;
-use bevy::prelude::TransformSystem::TransformPropagate;
-use lightyear::shared::replication::components::Controlled;
-
 use lightyear::prelude::client::*;
 use lightyear::prelude::TickManager;
 use lightyear::prelude::*;
-
-
-
 use super::protocol::*;
 use super::renderer::ExampleRendererPlugin;
-pub const FIXED_TIMESTEP_HZ: f64 = 64.0;
+
+
+
 pub const SERVER_REPLICATION_INTERVAL: Duration = Duration::from_millis(20);
 pub const SERVER_ADDR: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 5000);
 pub const MAX_VELOCITY: f32 = 500.0;
@@ -208,6 +199,7 @@ impl WallBundle {
                 collider: Collider::segment(start, end),
                 collider_density: ColliderDensity(1.0),
                 rigid_body: RigidBody::Static,
+                rotation_lock: LockedAxes::ROTATION_LOCKED,
             },
             wall: Wall { start, end },
             name: Name::from("wall"),
