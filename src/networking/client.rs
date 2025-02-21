@@ -1,17 +1,17 @@
 //! The client plugin.
-use crate::{GameCleanUp, MultiplayerState};
+use crate::{networking::shared::apply_action_state_to_player_movement, GameCleanUp, MultiplayerState};
 
 use super::{
-    protocol::{BallMarker, ColorComponent, PhysicsBundle, PlayerActions, PlayerBundle, PlayerId},
-    shared::{shared_config, shared_movement_behaviour},
+    protocol::{BallMarker, BulletHitEvent, BulletMarker, ColorComponent, PhysicsBundle, Player, PlayerActions},
+    shared::{process_collisions, shared_config, shared_player_firing, ApplyInputsQuery},
     SteamworksResource,
 };
-use avian2d::prelude::{LinearVelocity, Position};
+use avian2d::prelude::{Collider, LinearVelocity, Position};
 use bevy::prelude::*;
 
 use leafwing_input_manager::prelude::{ActionState, InputMap};
 pub use lightyear::prelude::client::*;
-use lightyear::{prelude::*, transport::LOCAL_SOCKET};
+use lightyear::{inputs::leafwing::input_buffer::InputBuffer, prelude::*, shared::replication::components::Controlled, transport::LOCAL_SOCKET};
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
     str::FromStr,
@@ -42,28 +42,33 @@ impl Plugin for ExampleClientPlugin {
         // add lightyear plugins
         app.add_plugins(build_host_client_plugin());
 
-        app.add_systems(
-            PreUpdate,
-            handle_connection
-                .after(MainSet::Receive)
-                .before(PredictionSet::SpawnPrediction),
-        );
-        // all actions related-system that can be rolled back should be in FixedUpdate schedule
-        app.add_systems(
+            // all actions related-system that can be rolled back should be in FixedUpdate schedule
+            app.add_systems(
             FixedUpdate,
-            player_movement.run_if(
-                in_state(MultiplayerState::Client).or(in_state(MultiplayerState::HostServer)),
-            ),
-        ); //We want hostservers to run this
+            (
+                // in host-server, we don't want to run the movement logic twice
+                // disable this because we also run the movement logic in the server
+                player_movement.run_if(in_state(MultiplayerState::Client)),
+                // we don't spawn bullets during rollback.
+                // if we have the inputs early (so not in rb) then we spawn,
+                // otherwise we rely on normal server replication to spawn them
+                shared_player_firing.run_if(not(is_in_rollback)).run_if(in_state(MultiplayerState::Client)),
+            )
+                .chain(),
+        );
         app.add_systems(
             Update,
             (
                 add_ball_physics.run_if(in_state(MultiplayerState::Client)),
-                add_player_physics.run_if(in_state(MultiplayerState::Client)),
-                // send_message,
-                handle_predicted_spawn.run_if(in_state(MultiplayerState::Client)),
-                handle_interpolated_spawn.run_if(in_state(MultiplayerState::Client)),
+                add_bullet_physics.run_if(in_state(MultiplayerState::Client)), // TODO better to scheduled right after replicated entities get spawned?
+                handle_new_player,
             ),
+        );
+        app.add_systems(
+            FixedUpdate,
+            handle_hit_event
+                .run_if(on_event::<BulletHitEvent>)
+                .after(process_collisions).run_if(in_state(MultiplayerState::Client)),
         );
     }
 }
@@ -130,8 +135,8 @@ pub fn setup_client(
         // the address specified here is the client_address, because we open a UDP socket on the client
         transport: transport,
         conditioner: Some(LinkConditionerConfig {
-            incoming_latency: Duration::from_millis(100),
-            incoming_jitter: Duration::from_millis(30),
+            incoming_latency: Duration::from_millis(50),
+            incoming_jitter: Duration::from_millis(10),
             incoming_loss: 0.001,
         }),
         ..default()
@@ -177,147 +182,138 @@ pub fn setup_host_client(mut commands: Commands, mut client_config: ResMut<Clien
     println!("trying to connect")
 }
 
-/// Listen for events to know when the client is connected, and spawn player entities
-pub(crate) fn handle_connection(
-    mut commands: Commands,
-    mut connection_event: EventReader<ConnectEvent>,
-) {
-    for event in connection_event.read() {
-        let client_id = event.client_id();
-        let y = (client_id.to_bits() as f32 * 50.0) % 500.0 - 250.0;
-        // we will spawn two cubes per player, once is controlled with WASD, the other with arrows
-        commands.spawn((
-            PlayerBundle::new(
-                client_id,
-                Vec2::new(-50.0, y),
-                InputMap::new([
-                    (PlayerActions::Up, KeyCode::KeyW),
-                    (PlayerActions::Down, KeyCode::KeyS),
-                    (PlayerActions::Left, KeyCode::KeyA),
-                    (PlayerActions::Right, KeyCode::KeyD),
-                ]),
-            ),
-            GameCleanUp,
-        ));
-        // commands.spawn((PlayerBundle::new(
-        //     client_id,
-        //     Vec2::new(50.0, y),
-        //     InputMap::new([
-        //         (PlayerActions::Up, KeyCode::ArrowUp),
-        //         (PlayerActions::Down, KeyCode::ArrowDown),
-        //         (PlayerActions::Left, KeyCode::ArrowLeft),
-        //         (PlayerActions::Right, KeyCode::ArrowRight),
-        //     ]),
-        // ),));
-    }
-}
+
 
 /// Blueprint pattern: when the ball gets replicated from the server, add all the components
 /// that we need that are not replicated.
 /// (for example physical properties that are constant, so they don't need to be networked)
 ///
-/// We only add the physical properties on the ball that is displayed on screen (i.e the Interpolated ball)
+/// We only add the physical properties on the ball that is displayed on screen (i.e the Predicted ball)
 /// We want the ball to be rigid so that when players collide with it, they bounce off.
-///
-/// However we remove the Position because we want the balls position to be interpolated, without being computed/updated
-/// by the physics engine? Actually this shouldn't matter because we run interpolation in PostUpdate...
 fn add_ball_physics(
     mut commands: Commands,
-    mut ball_query: Query<
-        Entity,
-        (
-            With<BallMarker>,
-            Or<(Added<Interpolated>, Added<Predicted>)>,
-        ),
-    >,
+    mut ball_query: Query<(Entity, &BallMarker), Added<Predicted>>,
 ) {
-    for entity in ball_query.iter_mut() {
-        commands
-            .entity(entity)
-            .insert((PhysicsBundle::ball(), GameCleanUp));
+    for (entity, ball) in ball_query.iter_mut() {
+        info!("Adding physics to a replicated ball {entity:?}");
+        commands.entity(entity).insert(ball.physics_bundle());
     }
 }
 
-/// When we receive other players (whether they are predicted or interpolated), we want to add the physics components
-/// so that our predicted entities can predict collisions with them correctly
-fn add_player_physics(
+/// Simliar blueprint scenario as balls, except sometimes clients prespawn bullets ahead of server
+/// replication, which means they will already have the physics components.
+/// So, we filter the query using `Without<Collider>`.
+fn add_bullet_physics(
+    mut commands: Commands,
+    mut bullet_query: Query<Entity, (With<BulletMarker>, Added<Predicted>, Without<Collider>)>,
+) {
+    for entity in bullet_query.iter_mut() {
+        info!("Adding physics to a replicated bullet:  {entity:?}");
+        commands.entity(entity).insert(PhysicsBundle::bullet());
+    }
+}
+
+/// Decorate newly connecting players with physics components
+/// ..and if it's our own player, set up input stuff
+fn handle_new_player(
     connection: Res<ClientConnection>,
     mut commands: Commands,
-    mut player_query: Query<
-        (Entity, &PlayerId),
-        (
-            // insert the physics components on the player that is displayed on screen
-            // (either interpolated or predicted)
-            Or<(Added<Interpolated>, Added<Predicted>)>,
-        ),
-    >,
+    mut player_query: Query<(Entity, &Player, Has<Controlled>), Added<Predicted>>,
 ) {
-    let client_id = connection.id();
-    for (entity, player_id) in player_query.iter_mut() {
-        if player_id.0 == client_id {
-            // only need to do this for other players' entities
-            debug!(
-                ?entity,
-                ?player_id,
-                "we only want to add physics to other player! Skip."
-            );
+    for (entity, player, is_controlled) in player_query.iter_mut() {
+        info!("handle_new_player, entity = {entity:?} is_controlled = {is_controlled}");
+        // is this our own entity?
+        if is_controlled {
+            info!("Own player replicated to us, adding inputmap {entity:?} {player:?}");
+            commands.entity(entity).insert(InputMap::new([
+                (PlayerActions::Up, KeyCode::ArrowUp),
+                (PlayerActions::Down, KeyCode::ArrowDown),
+                (PlayerActions::Left, KeyCode::ArrowLeft),
+                (PlayerActions::Right, KeyCode::ArrowRight),
+                (PlayerActions::Up, KeyCode::KeyW),
+                (PlayerActions::Down, KeyCode::KeyS),
+                (PlayerActions::Left, KeyCode::KeyA),
+                (PlayerActions::Right, KeyCode::KeyD),
+                (PlayerActions::Fire, KeyCode::Space),
+            ]));
+        } else {
+            info!("Remote player replicated to us: {entity:?} {player:?}");
+            // inserting an input buffer for other clients so that we can predict them properly
+            // (the server will send other player's inputs to us; we will receive them on time thanks to input delay)
+            commands
+                .entity(entity)
+                .insert(InputBuffer::<PlayerActions>::default());
+        }
+        let client_id = connection.id();
+        info!(?entity, ?client_id, "adding physics to predicted player");
+        commands.entity(entity).insert(PhysicsBundle::player_ship());
+    }
+}
+
+// Generate an explosion effect for bullet collisions
+fn handle_hit_event(
+    time: Res<Time>,
+    mut events: EventReader<BulletHitEvent>,
+    mut commands: Commands,
+) {
+    for ev in events.read() {
+        commands.spawn((
+            Transform::from_xyz(ev.position.x, ev.position.y, 0.0),
+            Visibility::default(),
+            crate::networking::renderer::Explosion::new(time.elapsed(), ev.bullet_color),
+        ));
+    }
+}
+
+// only apply movements to predicted entities
+fn player_movement(
+    mut q: Query<
+        (
+            &ActionState<PlayerActions>,
+            &InputBuffer<PlayerActions>,
+            ApplyInputsQuery,
+        ),
+        (With<Player>, With<Predicted>),
+    >,
+    tick_manager: Res<TickManager>,
+    rollback: Option<Res<Rollback>>,
+) {
+    // max number of stale inputs to predict before default inputs used
+    const MAX_STALE_TICKS: u16 = 6;
+    // get the tick, even if during rollback
+    let tick = rollback
+        .as_ref()
+        .map(|rb| tick_manager.tick_or_rollback_tick(rb))
+        .unwrap_or(tick_manager.tick());
+
+    for (action_state, input_buffer, mut aiq) in q.iter_mut() {
+        // is the current ActionState for real?
+        if input_buffer.get(tick).is_some() {
+            // Got an exact input for this tick, staleness = 0, the happy path.
+            apply_action_state_to_player_movement(action_state, 0, &mut aiq, tick);
             continue;
         }
-        info!(?entity, ?player_id, "adding physics to predicted player");
-        commands
-            .entity(entity)
-            .insert((PhysicsBundle::player(), GameCleanUp));
-    }
-}
 
-// The client input only gets applied to predicted entities that we own
-// This works because we only predict the user's controlled entity.
-// If we were predicting more entities, we would have to only apply movement to the player owned one.
-fn player_movement(
-    tick_manager: Res<TickManager>,
-    mut velocity_query: Query<
-        (
-            Entity,
-            &PlayerId,
-            &Position,
-            &mut LinearVelocity,
-            &ActionState<PlayerActions>,
-        ),
-        With<Predicted>,
-    >,
-) {
-    for (entity, _player_id, position, velocity, action_state) in velocity_query.iter_mut() {
-        trace!(?entity, tick = ?tick_manager.tick(), ?position, actions = ?action_state.get_pressed(), "applying movement to predicted player");
-        // note that we also apply the input to the other predicted clients! even though
-        //  their inputs are only replicated with a delay!
-        // TODO: add input decay?
-        shared_movement_behaviour(velocity, action_state);
-    }
-}
-
-// When the predicted copy of the client-owned entity is spawned, do stuff
-// - assign it a different saturation
-// - keep track of it in the Global resource
-pub(crate) fn handle_predicted_spawn(mut predicted: Query<&mut ColorComponent, Added<Predicted>>) {
-    for mut color in predicted.iter_mut() {
-        let hsva = Hsva {
-            saturation: 0.4,
-            ..Hsva::from(color.0)
-        };
-        color.0 = Color::from(hsva);
-    }
-}
-
-// When the interpolated copy of the client-owned entity is spawned, do stuff
-// - assign it a different color
-pub(crate) fn handle_interpolated_spawn(
-    mut interpolated: Query<&mut ColorComponent, Added<Interpolated>>,
-) {
-    for mut color in interpolated.iter_mut() {
-        let hsva = Hsva {
-            saturation: 0.1,
-            ..Hsva::from(color.0)
-        };
-        color.0 = Color::from(hsva);
+        // if the true input is missing, this will be leftover from a previous tick, or the default().
+        if let Some((prev_tick, prev_input)) = input_buffer.get_last_with_tick() {
+            let staleness = (tick - prev_tick).max(0) as u16;
+            if staleness > MAX_STALE_TICKS {
+                // input too stale, apply default input (ie, nothing pressed)
+                apply_action_state_to_player_movement(
+                    &ActionState::default(),
+                    staleness,
+                    &mut aiq,
+                    tick,
+                );
+            } else {
+                // apply a stale input within our acceptable threshold.
+                // we could use the staleness to decay movement forces as desired.
+                apply_action_state_to_player_movement(prev_input, staleness, &mut aiq, tick);
+            }
+        } else {
+            // no inputs in the buffer yet, can happen during initial connection.
+            // apply the default input (ie, nothing pressed)
+            apply_action_state_to_player_movement(action_state, 0, &mut aiq, tick);
+        }
     }
 }

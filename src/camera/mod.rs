@@ -1,8 +1,8 @@
-use bevy::prelude::*;
+use bevy::{core_pipeline::{bloom::Bloom, tonemapping::Tonemapping}, prelude::*};
 // use iyes_perf_ui::prelude::{PerfUiEntryFPS, PerfUiRoot, PerfUiWidgetBar};
 use lightyear::{prelude::client::Predicted, shared::replication::components::Controlled};
 
-use crate::{networking::protocol::PlayerId, GameState};
+use crate::{networking::protocol::Player, GameState};
 
 #[derive(Component)]
 pub struct OuterCamera;
@@ -21,7 +21,15 @@ impl Plugin for CameraPlugin {
 fn setup_camera(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
     // the "outer" camera renders whatever is on `HIGH_RES_LAYERS` to the screen.
     // here, the canvas and one of the sample sprites will be rendered by this camera
-    commands.spawn((Camera2d, Msaa::Off, OuterCamera)); //.with_child((PixelCanvas, Sprite::from_image(image_handle), Canvas, HIGH_RES_LAYERS));
+    commands.spawn((Camera2d,
+        Camera {
+            hdr: true,
+            ..default()
+        },
+        Tonemapping::TonyMcMapface,
+        Bloom::default(),
+        Visibility::default(),
+        OuterCamera)); //.with_child((PixelCanvas, Sprite::from_image(image_handle), Canvas, HIGH_RES_LAYERS));
 
     // commands.spawn(PerfUiAllEntries::default());
     // commands.spawn((
@@ -33,10 +41,10 @@ fn setup_camera(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
 
 fn camera_follow_player(
     // local_players: Res<LocalPlayers>,
-    players: Query<(&PlayerId, &Transform, Has<Controlled>), With<Predicted>>,
+    players: Query<(&Player, &Transform, Has<Controlled>), With<Predicted>>,
     mut cameras: Query<
         (&mut Transform, &OrthographicProjection),
-        (With<OuterCamera>, Without<PlayerId>),
+        (With<OuterCamera>, Without<Player>),
     >,
 ) {
     for (_player, player_transform, controlled) in players.iter() {

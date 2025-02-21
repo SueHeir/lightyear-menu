@@ -4,15 +4,20 @@ use std::net::IpAddr;
 use std::net::Ipv4Addr;
 use std::net::SocketAddr;
 
+use crate::GameCleanUp;
+
 use super::protocol::*;
 use super::renderer::ExampleRendererPlugin;
 use avian2d::prelude::*;
+use bevy::ecs::query::QueryData;
 use bevy::prelude::*;
 use bevy::utils::Duration;
 use leafwing_input_manager::prelude::ActionState;
 use lightyear::prelude::client::*;
+use lightyear::prelude::server::ReplicationTarget;
 use lightyear::prelude::TickManager;
 use lightyear::prelude::*;
+use lightyear::shared::replication::components::Controlled;
 
 pub const SERVER_REPLICATION_INTERVAL: Duration = Duration::from_millis(20);
 pub const SERVER_ADDR: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 5000);
@@ -24,28 +29,39 @@ pub struct SharedPlugin;
 impl Plugin for SharedPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(ProtocolPlugin);
-        app.add_plugins(ExampleRendererPlugin {
-            show_confirmed: true,
-        });
+        app.add_plugins(ExampleRendererPlugin { show_confirmed: false });
+
         // bundles
         app.add_systems(Startup, init);
 
+        // Physics
+        //
+        // we use Position and Rotation as primary source of truth, so no need to sync changes
+        // from Transform->Pos, just Pos->Transform.
         app.insert_resource(avian2d::sync::SyncConfig {
             transform_to_position: false,
             position_to_transform: true,
-            transform_to_collider_scale: true,
+            ..default()
         });
+        // We change SyncPlugin to PostUpdate, because we want the visually interpreted values
+        // synced to transform every time, not just when Fixed schedule runs.
+        // app.add_plugins(PhysicsPlugins::default().build());
 
-        // add a log at the start of the physics schedule
-        app.add_systems(PhysicsSchedule, log.in_set(PhysicsStepSet::First));
+        app.insert_resource(Gravity(Vec2::ZERO));
+        // our systems run in FixedUpdate, avian's systems run in FixedPostUpdate.
+        app.add_systems(
+            FixedUpdate,
+            (process_collisions, lifetime_despawner).chain(),
+        );
 
-        app.add_systems(FixedPostUpdate, after_physics_log);
-        app.add_systems(Last, last_log);
+        app.add_systems(PostProcessCollisions, filter_own_bullet_collisions);
 
+        app.add_event::<BulletHitEvent>();
         // registry types for reflection
-        app.register_type::<PlayerId>();
+        app.register_type::<Player>();
     }
 }
+
 
 pub fn shared_config() -> SharedConfig {
     SharedConfig {
@@ -53,6 +69,33 @@ pub fn shared_config() -> SharedConfig {
         server_replication_send_interval: SERVER_REPLICATION_INTERVAL,
         ..default()
     }
+}
+
+// Players can't collide with their own bullets.
+// this is especially helpful if you are accelerating forwards while shooting, as otherwise you
+// might overtake / collide on spawn with your own bullets that spawn in front of you.
+fn filter_own_bullet_collisions(
+    mut collisions: ResMut<Collisions>,
+    q_bullets: Query<&BulletMarker>,
+    q_players: Query<&Player>,
+) {
+    collisions.retain(|contacts| {
+        if let Ok(bullet) = q_bullets.get(contacts.entity1) {
+            if let Ok(player) = q_players.get(contacts.entity2) {
+                if bullet.owner == player.client_id {
+                    return false;
+                }
+            }
+        }
+        if let Ok(bullet) = q_bullets.get(contacts.entity2) {
+            if let Ok(player) = q_players.get(contacts.entity1) {
+                if bullet.owner == player.client_id {
+                    return false;
+                }
+            }
+        }
+        true
+    });
 }
 
 // Generate pseudo-random color from id
@@ -86,90 +129,182 @@ pub(crate) fn init(mut commands: Commands) {
     ));
 }
 
-// This system defines how we update the player's positions when we receive an input
-pub(crate) fn shared_movement_behaviour(
-    mut velocity: Mut<LinearVelocity>,
+#[derive(QueryData)]
+#[query_data(mutable, derive(Debug))]
+pub struct ApplyInputsQuery {
+    pub ex_force: &'static mut ExternalForce,
+    pub ang_vel: &'static mut AngularVelocity,
+    pub rot: &'static Rotation,
+    pub player: &'static Player,
+}
+
+/// applies forces based on action state inputs
+pub fn apply_action_state_to_player_movement(
     action: &ActionState<PlayerActions>,
+    staleness: u16,
+    aiq: &mut ApplyInputsQueryItem,
+    tick: Tick,
 ) {
-    velocity.y = 0.0;
-    velocity.x = 0.0;
+    // #[cfg(target_family = "wasm")]
+    // if !action.get_pressed().is_empty() {
+    //     info!(
+    //         "{} {:?} {tick:?} = {:?} staleness = {staleness}",
+    //         if staleness > 0 { "🎹😐" } else { "🎹" },
+    //         aiq.player.client_id,
+    //         action.get_pressed(),
+    //     );
+    // }
+
+    let ex_force = &mut aiq.ex_force;
+    let rot = &aiq.rot;
+    let ang_vel = &mut aiq.ang_vel;
+
+    const THRUSTER_POWER: f32 = 32000.;
+    const ROTATIONAL_SPEED: f32 = 4.0;
 
     if action.pressed(&PlayerActions::Up) {
-        velocity.y = MAX_VELOCITY;
-    } else if action.pressed(&PlayerActions::Down) {
-        velocity.y = -MAX_VELOCITY;
-    } else {
-        velocity.y = 0.0;
+        ex_force
+            .apply_force(*rot * (Vec2::Y * THRUSTER_POWER))
+            .with_persistence(false);
     }
-    if action.pressed(&PlayerActions::Left) {
-        velocity.x = -MAX_VELOCITY;
+    let desired_ang_vel = if action.pressed(&PlayerActions::Left) {
+        ROTATIONAL_SPEED
     } else if action.pressed(&PlayerActions::Right) {
-        velocity.x = MAX_VELOCITY;
+        -ROTATIONAL_SPEED
     } else {
-        velocity.x = 0.0;
-    }
-
-    *velocity = LinearVelocity(velocity.clamp_length_max(MAX_VELOCITY));
-}
-
-pub(crate) fn after_physics_log(
-    tick_manager: Res<TickManager>,
-    rollback: Option<Res<Rollback>>,
-    players: Query<
-        (Entity, &Position, &Rotation),
-        (Without<BallMarker>, Without<Confirmed>, With<PlayerId>),
-    >,
-    ball: Query<(&Position, &Rotation), (With<BallMarker>, Without<Confirmed>)>,
-) {
-    let tick = rollback.map_or(tick_manager.tick(), |r| {
-        tick_manager.tick_or_rollback_tick(r.as_ref())
-    });
-    for (entity, position, rotation) in players.iter() {
-        trace!(
-            ?tick,
-            ?entity,
-            ?position,
-            rotation = ?rotation.as_degrees(),
-            "Player after physics update"
-        );
-    }
-    for (position, rotation) in ball.iter() {
-        trace!(?tick, ?position, ?rotation, "Ball after physics update");
+        0.0
+    };
+    if ang_vel.0 != desired_ang_vel {
+        ang_vel.0 = desired_ang_vel;
     }
 }
 
-pub(crate) fn last_log(
-    tick_manager: Res<TickManager>,
-    players: Query<
+/// NB we are not restricting this query to `Controlled` entities on the clients, because we hope to
+///    receive PlayerActions for remote players ahead of the server simulating the tick (lag, input delay, etc)
+///    in which case we prespawn their bullets on the correct tick, just like we do for our own bullets.
+///
+///    When spawning here, we add the `PreSpawnedPlayerObject` component, and when the client receives the
+///    replication packet from the server, it matches the hashes on its own `PreSpawnedPlayerObject`, allowing it to
+///    treat our locally spawned one as the `Predicted` entity (and gives it the Predicted component).
+///
+///    This system doesn't run in rollback, so without early player inputs, their bullets will be
+///    spawned by the normal server replication (triggering a rollback).
+pub fn shared_player_firing(
+    mut q: Query<
         (
-            Entity,
             &Position,
             &Rotation,
-            Option<&Correction<Position>>,
-            Option<&Correction<Rotation>>,
+            &LinearVelocity,
+            &ColorComponent,
+            &ActionState<PlayerActions>,
+            &mut Weapon,
+            Has<Controlled>,
+            &Player,
         ),
-        (Without<BallMarker>, Without<Confirmed>, With<PlayerId>),
+        Or<(With<Predicted>, With<ReplicationTarget>)>,
     >,
-    ball: Query<(&Position, &Rotation), (With<BallMarker>, Without<Confirmed>)>,
+    mut commands: Commands,
+    tick_manager: Res<TickManager>,
+    identity: NetworkIdentity,
 ) {
-    let tick = tick_manager.tick();
-    for (entity, position, rotation, correction, rotation_correction) in players.iter() {
-        trace!(?tick, ?entity, ?position, ?correction, "Player LAST update");
-        trace!(
-            ?tick,
-            ?entity,
-            rotation = ?rotation.as_degrees(),
-            ?rotation_correction,
-            "Player LAST update"
-        );
+    if q.is_empty() {
+        return;
     }
-    for (position, rotation) in ball.iter() {
-        trace!(?tick, ?position, ?rotation, "Ball LAST update");
+
+    let current_tick = tick_manager.tick();
+    for (
+        player_position,
+        player_rotation,
+        player_velocity,
+        color,
+        action,
+        mut weapon,
+        is_local,
+        player,
+    ) in q.iter_mut()
+    {
+        if !action.pressed(&PlayerActions::Fire) {
+            continue;
+        }
+        let wrapped_diff = weapon.last_fire_tick - current_tick;
+        if wrapped_diff.abs() <= weapon.cooldown as i16 {
+            // cooldown period - can't fire.
+            if weapon.last_fire_tick == current_tick {
+                // logging because debugging latency edge conditions where
+                // inputs arrive on exact frame server replicates to you.
+                info!("Can't fire, fired this tick already! {current_tick:?}");
+            } else {
+                // info!("cooldown. {weapon:?} current_tick = {current_tick:?} wrapped_diff: {wrapped_diff}");
+            }
+            continue;
+        }
+        let prev_last_fire_tick = weapon.last_fire_tick;
+        weapon.last_fire_tick = current_tick;
+
+        // bullet spawns just in front of the nose of the ship, in the direction the ship is facing,
+        // and inherits the speed of the ship.
+        let bullet_spawn_offset = Vec2::Y * (2.0 + (SHIP_LENGTH + BULLET_SIZE) / 2.0);
+
+        let bullet_origin = player_position.0 + player_rotation * bullet_spawn_offset;
+        let bullet_linvel = player_rotation * (Vec2::Y * weapon.bullet_speed) + player_velocity.0;
+
+        // the default hashing algorithm uses the tick and component list. in order to disambiguate
+        // between two players spawning a bullet on the same tick, we add client_id to the mix.
+        let prespawned = PreSpawnedPlayerObject::default_with_salt(player.client_id.to_bits());
+
+        let bullet_entity = commands
+            .spawn((
+                BulletBundle::new(
+                    player.client_id,
+                    bullet_origin,
+                    bullet_linvel,
+                    (color.0.to_linear() * 5.0).into(), // bloom!
+                    current_tick,
+                ),
+                PhysicsBundle::bullet(),
+                prespawned,
+            ))
+            .id();
+        debug!(
+            "spawned bullet for ActionState, bullet={bullet_entity:?} ({}, {}). prev last_fire tick: {prev_last_fire_tick:?}",
+            weapon.last_fire_tick.0, player.client_id
+        );
+
+        if identity.is_server() {
+            let replicate = server::Replicate {
+                sync: server::SyncTarget {
+                    prediction: NetworkTarget::All,
+                    ..Default::default()
+                },
+                // make sure that all entities that are predicted are part of the same replication group
+                group: REPLICATION_GROUP,
+                ..default()
+            };
+            commands.entity(bullet_entity).insert(replicate);
+        }
     }
 }
 
-pub(crate) fn log() {
-    trace!("run physics schedule!");
+// we want clients to predict the despawn due to TTL expiry, so this system runs on both client and server.
+// servers despawn without replicating that fact.
+pub(crate) fn lifetime_despawner(
+    q: Query<(Entity, &Lifetime)>,
+    mut commands: Commands,
+    tick_manager: Res<TickManager>,
+    identity: NetworkIdentity,
+) {
+    for (e, ttl) in q.iter() {
+        if (tick_manager.tick() - ttl.origin_tick) > ttl.lifetime {
+            // if ttl.origin_tick.wrapping_add(ttl.lifetime) > *tick_manager.tick() {
+            if identity.is_server() {
+                // info!("Despawning {e:?} without replication");
+                commands.entity(e).despawn();
+            } else {
+                // info!("Despawning:lifetime {e:?}");
+                commands.entity(e).prediction_despawn();
+            }
+        }
+    }
 }
 
 // Wall
@@ -195,10 +330,69 @@ impl WallBundle {
                 collider: Collider::segment(start, end),
                 collider_density: ColliderDensity(1.0),
                 rigid_body: RigidBody::Static,
-                rotation_lock: LockedAxes::ROTATION_LOCKED,
+                external_force: ExternalForce::default(),
+                game_clean_up: GameCleanUp,
             },
             wall: Wall { start, end },
-            name: Name::from("wall"),
+            name: Name::new("Wall"),
+            
+        }
+    }
+}
+
+// Despawn bullets that collide with something.
+//
+// Generate a BulletHitEvent so we can modify scores, show visual effects, etc.
+pub(crate) fn process_collisions(
+    mut collision_event_reader: EventReader<Collision>,
+    bullet_q: Query<(&BulletMarker, &ColorComponent, &Position)>,
+    player_q: Query<&Player>,
+    mut commands: Commands,
+    tick_manager: Res<TickManager>,
+    identity: NetworkIdentity,
+    mut hit_ev_writer: EventWriter<BulletHitEvent>,
+) {
+    // when A and B collide, it can be reported as one of:
+    // * A collides with B
+    // * B collides with A
+    // which is why logic is duplicated twice here
+    for Collision(contacts) in collision_event_reader.read() {
+        if let Ok((bullet, col, bullet_pos)) = bullet_q.get(contacts.entity1) {
+            // despawn the bullet
+            if identity.is_server() {
+                commands.entity(contacts.entity1).despawn();
+            } else {
+                commands.entity(contacts.entity1).prediction_despawn();
+            }
+            let victim_client_id = player_q
+                .get(contacts.entity2)
+                .map_or(None, |victim_player| Some(victim_player.client_id));
+
+            let ev = BulletHitEvent {
+                bullet_owner: bullet.owner,
+                victim_client_id,
+                position: bullet_pos.0,
+                bullet_color: col.0,
+            };
+            hit_ev_writer.send(ev);
+        }
+        if let Ok((bullet, col, bullet_pos)) = bullet_q.get(contacts.entity2) {
+            if identity.is_server() {
+                commands.entity(contacts.entity2).despawn();
+            } else {
+                commands.entity(contacts.entity2).prediction_despawn();
+            }
+            let victim_client_id = player_q
+                .get(contacts.entity1)
+                .map_or(None, |victim_player| Some(victim_player.client_id));
+
+            let ev = BulletHitEvent {
+                bullet_owner: bullet.owner,
+                victim_client_id,
+                position: bullet_pos.0,
+                bullet_color: col.0,
+            };
+            hit_ev_writer.send(ev);
         }
     }
 }

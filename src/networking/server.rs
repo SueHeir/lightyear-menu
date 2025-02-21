@@ -6,27 +6,28 @@
 //! - read inputs from the clients and move the player entities accordingly
 //!
 //! Lightyear will handle the replication of entities automatically if you add a `Replicate` component to them.
-use crate::networking::shared::shared_movement_behaviour;
-use crate::{GameCleanUp, MultiplayerState};
+use crate::{GameCleanUp, GameState, MultiplayerState};
 use bevy::color::palettes::css;
 use bevy::prelude::*;
+use bevy::time::common_conditions::on_timer;
 use lightyear::connection::server::{ConnectionRequestHandler, DeniedReason};
 use lightyear::prelude::client::{Confirmed, Predicted};
 use lightyear::prelude::server::*;
 use lightyear::prelude::*;
 use lightyear::server::input::leafwing::InputSystemSet;
 
+use std::f32::consts::TAU;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 use std::time::Duration;
 
-use super::protocol::*;
+use super::{protocol::*, shared};
 use avian2d::prelude::*;
 
 use leafwing_input_manager::prelude::*;
 use lightyear::shared::replication::components::InitialReplicated;
 
-use super::shared::{shared_config, SERVER_ADDR};
+use super::shared::{apply_action_state_to_player_movement, shared_config, ApplyInputsQuery, SERVER_ADDR};
 
 #[derive(Resource)]
 pub struct Global {
@@ -96,24 +97,32 @@ impl Plugin for ExampleServerPlugin {
         // add lightyear plugins
         app.add_plugins(build_server_plugin(self.steam_client.clone()));
 
-        // app.add_systems(OnEnter(GameState::Game), init.run_if(in_state(MultiplayerState::Server).or(in_state(MultiplayerState::HostServer))));
+        app.add_systems(OnEnter(GameState::Game), init.run_if(in_state(MultiplayerState::Server).or(in_state(MultiplayerState::HostServer))));
 
         app.add_systems(
             PreUpdate,
             // this system will replicate the inputs of a client to other clients
             // so that a client can predict other clients
-            replicate_inputs.after(InputSystemSet::ReceiveInputs),
-        );
-        // Re-adding Replicate components to client-replicated entities must be done in this set for proper handling.
-        app.add_systems(
-            PreUpdate,
-            replicate_players.in_set(ServerReplicationSet::ClientReplication),
+            replicate_inputs.after(InputSystemSet::ReceiveInputs).run_if(in_state(MultiplayerState::Server).or(in_state(MultiplayerState::HostServer))),
         );
         // the physics/FixedUpdates systems that consume inputs should be run in this set
         app.add_systems(
             FixedUpdate,
-            movement
-                .run_if(in_state(MultiplayerState::Server).or(in_state(MultiplayerState::Server))),
+            (player_movement, shared::shared_player_firing).chain().run_if(in_state(MultiplayerState::Server).or(in_state(MultiplayerState::HostServer))),
+        );
+        app.add_systems(
+            Update,
+            (
+                handle_connections,
+                update_player_metrics.run_if(on_timer(Duration::from_secs(1))),
+            ).run_if(in_state(MultiplayerState::Server).or(in_state(MultiplayerState::HostServer))),
+        );
+
+        app.add_systems(
+            FixedUpdate,
+            handle_hit_event
+                .run_if(on_event::<BulletHitEvent>)
+                .after(shared::process_collisions).run_if(in_state(MultiplayerState::Server).or(in_state(MultiplayerState::HostServer))),
         );
     }
 }
@@ -127,7 +136,7 @@ pub fn setup_server(mut commands: Commands, mut server_config: ResMut<ServerConf
     let io = IoConfig {
         // the address specified here is the server_address, because we open a UDP socket on the server
         transport: ServerTransport::UdpSocket(server_addr),
-        // conditioner: Some(LinkConditionerConfig { incoming_latency: Duration::from_millis(200), incoming_jitter:  Duration::from_millis(20), incoming_loss: 0.05 }),
+        conditioner: Some(LinkConditionerConfig { incoming_latency: Duration::from_millis(50), incoming_jitter:  Duration::from_millis(10), incoming_loss: 0.05 }),
         ..default()
     };
     // The NetConfig specifies how we establish a connection with the server.
@@ -155,45 +164,32 @@ impl ConnectionRequestHandler for GnomellaConnectionRequestHandler {
     }
 }
 
-fn init(mut commands: Commands, global: Res<Global>) {
-    // the ball is server-authoritative
-    commands.spawn((
-        BallBundle::new(
-            Vec2::new(0.0, 0.0),
-            css::AZURE.into(),
-            // if true, we predict the ball on clients
-            global.predict_all,
-        ),
-        GameCleanUp,
-    ));
-}
-
-/// Read client inputs and move players
-/// NOTE: this system can now be run in both client/server!
-pub(crate) fn movement(
-    tick_manager: Res<TickManager>,
-    mut action_query: Query<
-        (
-            Entity,
-            &Position,
-            &mut LinearVelocity,
-            &ActionState<PlayerActions>,
-        ),
-        // if we run in host-server mode, we don't want to apply this system to the local client's entities
-        // because they are already moved by the client plugin
-        (Without<Confirmed>, Without<Predicted>),
-    >,
-) {
-    for (entity, position, velocity, action) in action_query.iter_mut() {
-        // NOTE: be careful to directly pass Mut<PlayerPosition>
-        // getting a mutable reference triggers change detection, unless you use `as_deref_mut()`
-        shared_movement_behaviour(velocity, action);
-        trace!(?entity, tick = ?tick_manager.tick(), ?position, actions = ?action.get_pressed(), "applying movement to player");
+fn init(mut commands: Commands) {
+    // the balls are server-authoritative
+    const NUM_BALLS: usize = 6;
+    for i in 0..NUM_BALLS {
+        let radius = 10.0 + i as f32 * 4.0;
+        let angle: f32 = i as f32 * (TAU / NUM_BALLS as f32);
+        let pos = Vec2::new(125.0 * angle.cos(), 125.0 * angle.sin());
+        commands.spawn(BallBundle::new(radius, pos, css::GOLD.into()));
     }
 }
 
-/// When we receive the input of a client, broadcast it to other clients
-/// so that they can predict this client's movements accurately
+
+/// Since Player is replicated, this allows the clients to display remote players' latency stats.
+fn update_player_metrics(
+    connection_manager: Res<ConnectionManager>,
+    mut q: Query<(Entity, &mut Player)>,
+) {
+    for (_e, mut player) in q.iter_mut() {
+        if let Ok(connection) = connection_manager.connection(player.client_id) {
+            player.rtt = connection.rtt();
+            player.jitter = connection.jitter();
+        }
+    }
+}
+
+
 pub(crate) fn replicate_inputs(
     mut receive_inputs: ResMut<Events<ServerReceiveMessage<InputMessage<PlayerActions>>>>,
     mut send_inputs: EventWriter<ServerSendMessage<InputMessage<PlayerActions>>>,
@@ -209,52 +205,167 @@ pub(crate) fn replicate_inputs(
     }));
 }
 
-// Replicate the pre-predicted entities back to the client
-// We have to use `InitialReplicated` instead of `Replicated`, because
-// the server has already assumed authority over the entity so the `Replicated` component
-// has been removed
-pub(crate) fn replicate_players(
-    global: Res<Global>,
+/// Whenever a new client connects, spawn their spaceship
+pub(crate) fn handle_connections(
+    mut connections: EventReader<ConnectEvent>,
     mut commands: Commands,
-    query: Query<(Entity, &InitialReplicated), (Added<InitialReplicated>, With<PlayerId>)>,
+    all_players: Query<Entity, With<Player>>,
 ) {
-    for (entity, replicated) in query.iter() {
-        let client_id = replicated.client_id();
-        info!(
-            "Received player spawn event from client {client_id:?}. Replicating back to all clients"
-        );
-
-        // for all player entities we have received, add a Replicate component so that we can start replicating it
-        // to other clients
-        if let Some(mut e) = commands.get_entity(entity) {
-            // we want to replicate back to the original client, since they are using a pre-predicted entity
-            let mut sync_target = SyncTarget::default();
-
-            if global.predict_all {
-                sync_target.prediction = NetworkTarget::All;
-            } else {
-                // we want the other clients to apply interpolation for the player
-                sync_target.interpolation = NetworkTarget::AllExceptSingle(client_id);
-            }
-            let replicate = Replicate {
-                sync: sync_target,
-                controlled_by: ControlledBy {
-                    target: NetworkTarget::Single(client_id),
-                    ..default()
-                },
-                // make sure that all entities that are predicted are part of the same replication group
-                group: REPLICATION_GROUP,
+    // track the number of connected players in order to pick colors and starting positions
+    let mut player_n = all_players.iter().count();
+    for connection in connections.read() {
+        let client_id = connection.client_id;
+        info!("New connected client, client_id: {client_id:?}. Spawning player entity..");
+        // replicate newly connected clients to all players
+        let replicate = Replicate {
+            sync: SyncTarget {
+                prediction: NetworkTarget::All,
                 ..default()
-            };
-            e.insert((
+            },
+            controlled_by: ControlledBy {
+                target: NetworkTarget::Single(client_id),
+                ..default()
+            },
+            // make sure that all entities that are predicted are part of the same replication group
+            group: REPLICATION_GROUP,
+            ..default()
+        };
+        // pick color and x,y pos for player
+
+        let available_colors = [
+            css::LIMEGREEN,
+            css::PINK,
+            css::YELLOW,
+            css::AQUA,
+            css::CRIMSON,
+            css::GOLD,
+            css::ORANGE_RED,
+            css::SILVER,
+            css::SALMON,
+            css::YELLOW_GREEN,
+            css::WHITE,
+            css::RED,
+        ];
+        let col = available_colors[player_n % available_colors.len()];
+        let angle: f32 = player_n as f32 * 5.0;
+        let x = 200.0 * angle.cos();
+        let y = 200.0 * angle.sin();
+
+        // spawn the player with ActionState - the client will add their own InputMap
+        let player_ent = commands
+            .spawn((
+                Player::new(client_id, pick_player_name(client_id.to_bits())),
+                Score(0),
+                Name::new("Player"),
+                ActionState::<PlayerActions>::default(),
+                Position(Vec2::new(x, y)),
                 replicate,
-                GameCleanUp,
-                // if we receive a pre-predicted entity, only send the prepredicted component back
-                // to the original client
-                OverrideTargetComponent::<PrePredicted>::new(NetworkTarget::Single(client_id)),
-                // not all physics components are replicated over the network, so add them on the server as well
-                PhysicsBundle::player(),
-            ));
+                PhysicsBundle::player_ship(),
+                Weapon::new((64.0 / 5.0) as u16),
+                ColorComponent(col.into()),
+            ))
+            .id();
+
+        info!("Created entity {player_ent:?} for client {client_id:?}");
+        player_n += 1;
+    }
+}
+
+fn pick_player_name(client_id: u64) -> String {
+    let index = (client_id % NAMES.len() as u64) as usize;
+    NAMES[index].to_string()
+}
+
+const NAMES: [&str; 35] = [
+    "Ellen Ripley",
+    "Sarah Connor",
+    "Neo",
+    "Trinity",
+    "Morpheus",
+    "John Connor",
+    "T-1000",
+    "Rick Deckard",
+    "Princess Leia",
+    "Han Solo",
+    "Spock",
+    "James T. Kirk",
+    "Hikaru Sulu",
+    "Nyota Uhura",
+    "Jean-Luc Picard",
+    "Data",
+    "Beverly Crusher",
+    "Seven of Nine",
+    "Doctor Who",
+    "Rose Tyler",
+    "Marty McFly",
+    "Doc Brown",
+    "Dana Scully",
+    "Fox Mulder",
+    "Riddick",
+    "Barbarella",
+    "HAL 9000",
+    "Megatron",
+    "Furiosa",
+    "Lois Lane",
+    "Clark Kent",
+    "Tony Stark",
+    "Natasha Romanoff",
+    "Bruce Banner",
+    "Mr. T",
+];
+
+/// Server will manipulate scores when a bullet collides with a player.
+/// the `Score` component is a simple replication. scores fully server-authoritative.
+pub(crate) fn handle_hit_event(
+    connection_manager: Res<server::ConnectionManager>,
+    mut events: EventReader<BulletHitEvent>,
+    client_q: Query<&ControlledEntities, Without<Player>>,
+    mut player_q: Query<(&Player, &mut Score)>,
+) {
+    let client_id_to_player_entity = |client_id: ClientId| -> Option<Entity> {
+        if let Ok(e) = connection_manager.client_entity(client_id) {
+            if let Ok(controlled_entities) = client_q.get(e) {
+                return controlled_entities.entities().pop();
+            }
         }
+        None
+    };
+
+    for ev in events.read() {
+        // did they hit a player?
+        if let Some(victim_entity) = ev.victim_client_id.and_then(client_id_to_player_entity) {
+            if let Ok((player, mut score)) = player_q.get_mut(victim_entity) {
+                score.0 -= 1;
+            }
+            if let Some(shooter_entity) = client_id_to_player_entity(ev.bullet_owner) {
+                if let Ok((player, mut score)) = player_q.get_mut(shooter_entity) {
+                    score.0 += 1;
+                }
+            }
+        }
+    }
+}
+
+/// Read inputs and move players
+///
+/// If we didn't receive the input for a given player, we do nothing (which is the default behaviour from lightyear),
+/// which means that we will be using the last known input for that player
+/// (i.e. we consider that the player kept pressing the same keys).
+/// see: https://github.com/cBournhonesque/lightyear/issues/492
+pub(crate) fn player_movement(
+    mut q: Query<(&ActionState<PlayerActions>, ApplyInputsQuery), With<Player>>,
+    tick_manager: Res<TickManager>,
+) {
+    let tick = tick_manager.tick();
+    for (action_state, mut aiq) in q.iter_mut() {
+        // if !aiq.action.get_pressed().is_empty() {
+        //     info!(
+        //         "🎹 {:?} {tick:?} = {:?}",
+        //         aiq.player.client_id,
+        //         aiq.action.get_pressed(),
+        //     );
+        // }
+        // check for missing inputs, and set them to default? or sustain for 1 tick?
+        apply_action_state_to_player_movement(action_state, 0, &mut aiq, tick);
     }
 }

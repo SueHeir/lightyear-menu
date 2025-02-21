@@ -29,6 +29,7 @@ pub mod protocol;
 mod renderer;
 mod server;
 mod shared;
+pub mod entity_label;
 use shared::SharedPlugin;
 
 #[derive(Resource)]
