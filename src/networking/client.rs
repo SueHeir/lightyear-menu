@@ -6,7 +6,7 @@ use super::{
     shared::{process_collisions, shared_config, shared_player_firing, ApplyInputsQuery},
     SteamworksResource,
 };
-use avian2d::prelude::{Collider, LinearVelocity, Position};
+use avian2d::prelude::{Collider, LinearVelocity, Position, Sensor};
 use bevy::prelude::*;
 
 use leafwing_input_manager::prelude::{ActionState, InputMap};
@@ -219,6 +219,7 @@ fn handle_new_player(
     connection: Res<ClientConnection>,
     mut commands: Commands,
     mut player_query: Query<(Entity, &Player, Has<Controlled>), Added<Predicted>>,
+    multiplayer_state: Res<State<MultiplayerState>>,
 ) {
     for (entity, player, is_controlled) in player_query.iter_mut() {
         info!("handle_new_player, entity = {entity:?} is_controlled = {is_controlled}");
@@ -244,9 +245,22 @@ fn handle_new_player(
                 .entity(entity)
                 .insert(InputBuffer::<PlayerActions>::default());
         }
+
+        if MultiplayerState::HostServer == *multiplayer_state.get() {
+            continue;
+        }
         let client_id = connection.id();
         info!(?entity, ?client_id, "adding physics to predicted player");
         commands.entity(entity).insert(PhysicsBundle::player_ship());
+        
+
+        commands.entity(entity).with_child((
+            Transform::from_translation(Vec3::new(0., 10., 0.)),
+            Sensor,
+            Collider::capsule(8.0, 20.0),
+        ));
+
+
     }
 }
 

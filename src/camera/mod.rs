@@ -1,8 +1,16 @@
-use bevy::{core_pipeline::{bloom::Bloom, tonemapping::Tonemapping}, prelude::*};
+use bevy::{core_pipeline::{bloom::Bloom, tonemapping::Tonemapping}, prelude::*, window::WindowResized};
 // use iyes_perf_ui::prelude::{PerfUiEntryFPS, PerfUiRoot, PerfUiWidgetBar};
 use lightyear::{prelude::client::Predicted, shared::replication::components::Controlled};
 
 use crate::{networking::protocol::Player, GameState};
+
+
+/// In-game resolution width.
+pub const RES_WIDTH: u32 = 640;
+
+/// In-game resolution height.
+pub const RES_HEIGHT: u32 = 360;
+
 
 #[derive(Component)]
 pub struct OuterCamera;
@@ -14,7 +22,7 @@ impl Plugin for CameraPlugin {
         app.add_systems(Startup, setup_camera).add_systems(
             Update,
             camera_follow_player.run_if(in_state(GameState::Game)),
-        );
+        ).add_systems(Update, fit_canvas);
     }
 }
 
@@ -24,11 +32,13 @@ fn setup_camera(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
     commands.spawn((Camera2d,
         Camera {
             hdr: true,
+            
             ..default()
         },
         Tonemapping::TonyMcMapface,
         Bloom::default(),
         Visibility::default(),
+        
         OuterCamera)); //.with_child((PixelCanvas, Sprite::from_image(image_handle), Canvas, HIGH_RES_LAYERS));
 
     // commands.spawn(PerfUiAllEntries::default());
@@ -37,6 +47,19 @@ fn setup_camera(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
     //     PerfUiWidgetBar::new(PerfUiEntryFPS::default()),
     //     // ...
     //  ));
+}
+
+
+/// Scales camera projection to fit the window (integer multiples only).
+fn fit_canvas(
+    mut resize_events: EventReader<WindowResized>,
+    mut projection: Single<&mut OrthographicProjection, With<OuterCamera>>,
+) {
+    for event in resize_events.read() {
+        let h_scale = event.width / RES_WIDTH as f32;
+        let v_scale = event.height / RES_HEIGHT as f32;
+        projection.scale = 0.3;
+    }
 }
 
 fn camera_follow_player(

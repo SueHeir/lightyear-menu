@@ -93,7 +93,7 @@ pub(crate) struct PhysicsBundle {
     pub(crate) collider: Collider,
     pub(crate) collider_density: ColliderDensity,
     pub(crate) rigid_body: RigidBody,
-    pub(crate) external_force: ExternalForce,
+    pub(crate) locked_axis: LockedAxes,
     pub(crate) game_clean_up: GameCleanUp,
 }
 
@@ -103,27 +103,23 @@ impl PhysicsBundle {
             collider: Collider::circle(BULLET_SIZE),
             collider_density: ColliderDensity(5.0),
             rigid_body: RigidBody::Dynamic,
-            external_force: ExternalForce::default(),
+            locked_axis: LockedAxes::new(),
             game_clean_up: GameCleanUp,
         }
     }
 
     pub(crate) fn player_ship() -> Self {
         // triangle ship, pointing up the screen
-        let points = vec![
-            Vec2::new(0.0, SHIP_LENGTH / 2.),
-            Vec2::new(SHIP_WIDTH / 2., -SHIP_LENGTH / 2.),
-            Vec2::new(-SHIP_WIDTH / 2., -SHIP_LENGTH / 2.),
-        ];
-        let collider = Collider::convex_hull(points).unwrap();
+        
+        let collider = Collider::circle(8.0);
         // Note: due to a bug in older (?) versions of bevy_xpbd, using a triangle collider here
         // sometimes caused strange behaviour. Unsure if this is fixed now.
         // Also, counter-clockwise ordering of points was required for convex hull creation (?)
         Self {
             collider,
             collider_density: ColliderDensity(1.0),
-            rigid_body: RigidBody::Dynamic,
-            external_force: ExternalForce::ZERO.with_persistence(false),
+            rigid_body: RigidBody::Kinematic,
+            locked_axis: LockedAxes::ROTATION_LOCKED,
             game_clean_up: GameCleanUp,
         }
     }
@@ -179,7 +175,7 @@ impl BallMarker {
             collider: Collider::circle(self.radius),
             collider_density: ColliderDensity(1.5),
             rigid_body: RigidBody::Dynamic,
-            external_force: ExternalForce::ZERO.with_persistence(false),
+            locked_axis: LockedAxes::new(),
             game_clean_up: GameCleanUp,
         }
     }

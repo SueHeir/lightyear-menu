@@ -132,9 +132,7 @@ pub(crate) fn init(mut commands: Commands) {
 #[derive(QueryData)]
 #[query_data(mutable, derive(Debug))]
 pub struct ApplyInputsQuery {
-    pub ex_force: &'static mut ExternalForce,
-    pub ang_vel: &'static mut AngularVelocity,
-    pub rot: &'static Rotation,
+    pub lin_vel: &'static mut LinearVelocity,
     pub player: &'static Player,
 }
 
@@ -145,7 +143,7 @@ pub fn apply_action_state_to_player_movement(
     aiq: &mut ApplyInputsQueryItem,
     tick: Tick,
 ) {
-    // #[cfg(target_family = "wasm")]
+     // #[cfg(target_family = "wasm")]
     // if !action.get_pressed().is_empty() {
     //     info!(
     //         "{} {:?} {tick:?} = {:?} staleness = {staleness}",
@@ -155,28 +153,29 @@ pub fn apply_action_state_to_player_movement(
     //     );
     // }
 
-    let ex_force = &mut aiq.ex_force;
-    let rot = &aiq.rot;
-    let ang_vel = &mut aiq.ang_vel;
+    let lin_vel = &mut aiq.lin_vel;
 
-    const THRUSTER_POWER: f32 = 32000.;
-    const ROTATIONAL_SPEED: f32 = 4.0;
+
+    let mut move_dir = Vec2::ZERO;
 
     if action.pressed(&PlayerActions::Up) {
-        ex_force
-            .apply_force(*rot * (Vec2::Y * THRUSTER_POWER))
-            .with_persistence(false);
+        move_dir.y += 1.0;
     }
-    let desired_ang_vel = if action.pressed(&PlayerActions::Left) {
-        ROTATIONAL_SPEED
-    } else if action.pressed(&PlayerActions::Right) {
-        -ROTATIONAL_SPEED
-    } else {
-        0.0
-    };
-    if ang_vel.0 != desired_ang_vel {
-        ang_vel.0 = desired_ang_vel;
+    if action.pressed(&PlayerActions::Down) {
+        move_dir.y -= 1.0;
     }
+    if action.pressed(&PlayerActions::Left) {
+        move_dir.x -= 1.0;
+    }
+    if action.pressed(&PlayerActions::Right) {
+        move_dir.x += 1.0;
+    }
+
+    move_dir = move_dir.normalize();
+
+    lin_vel.x = move_dir.x * 100.0;
+    lin_vel.y = move_dir.y * 100.0;
+
 }
 
 /// NB we are not restricting this query to `Controlled` entities on the clients, because we hope to
@@ -330,7 +329,7 @@ impl WallBundle {
                 collider: Collider::segment(start, end),
                 collider_density: ColliderDensity(1.0),
                 rigid_body: RigidBody::Static,
-                external_force: ExternalForce::default(),
+                locked_axis: LockedAxes::new(),
                 game_clean_up: GameCleanUp,
             },
             wall: Wall { start, end },
