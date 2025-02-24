@@ -160,9 +160,18 @@ impl Plugin for ExampleServerPlugin {
             Update,
             (
                 handle_connections,
+                handle_disconnections,
                 update_player_metrics.run_if(on_timer(Duration::from_secs(1))),
             ).run_if(in_state(MultiplayerState::Server).or(in_state(MultiplayerState::HostServer))),
         );
+
+        app.add_systems(
+            Update,
+            (
+                handle_disconnections,
+            ).run_if(in_state(MultiplayerState::Server)),
+        );
+        
 
         app.add_systems(
             FixedUpdate,
@@ -250,6 +259,20 @@ pub(crate) fn replicate_inputs(
         )
     }));
 }
+
+
+pub(crate) fn handle_disconnections(
+    mut connections: EventReader<DisconnectEvent>,
+    mut commands: Commands,
+    mut app_exit_events: EventWriter<AppExit>,) {
+
+        for connection in connections.read() {
+            if connection.client_id.to_bits() == 0 {
+                app_exit_events.send(AppExit::Success);
+            } 
+        }
+}
+
 
 /// Whenever a new client connects, spawn their spaceship
 pub(crate) fn handle_connections(

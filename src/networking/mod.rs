@@ -10,7 +10,7 @@ use bevy::{
         app::{AppExtStates, StatesPlugin}, condition::in_state, state::{NextState, OnEnter, State}
     }, window::WindowPlugin, winit::WinitPlugin, MinimalPlugins
 };
-use bevy_tokio_tasks::TokioTasksRuntime;
+use bevy_tokio_tasks::{tokio::task::JoinHandle, TokioTasksRuntime};
 use myclient::ExampleClientPlugin;
 use lightyear::{client::{config::{ClientConfig, NetcodeConfig}, networking}, prelude::{self, client::{Authentication, ClientCommandsExt, ClientTransport, IoConfig, NetConfig, NetworkingState}, server::ServerCommandsExt, *}};
 use lightyear::prelude::{client, server};
@@ -37,6 +37,11 @@ pub struct SteamworksResource {
     pub steamworks: Arc<parking_lot::lock_api::RwLock<parking_lot::RawRwLock, SteamworksClient>>,
 }
 
+#[derive(Resource)]
+pub struct SpawnedServerHandler {
+    pub handler: Option<JoinHandle<()>>
+}
+
 pub(crate) struct NetworkingPlugin;
 
 impl Plugin for NetworkingPlugin {
@@ -47,6 +52,10 @@ impl Plugin for NetworkingPlugin {
         //resource is used to "resetup" client before connection when a steam players name is clicked
         app.insert_resource(SteamworksResource {
             steamworks: steam_client.clone(),
+        });
+
+        app.insert_resource(SpawnedServerHandler {
+            handler: None,
         });
 
         //Steam netconfig is added when building the applocation.
@@ -97,10 +106,17 @@ pub fn esc_to_disconnect(
     mut commands: Commands,
     multiplayer_state: Res<State<MultiplayerState>>,
     mut game_state: ResMut<NextState<GameState>>,
+    mut seperate_server: ResMut<SpawnedServerHandler>,
 ) {
     if keys.just_pressed(KeyCode::Escape) {
         if MultiplayerState::Client == *multiplayer_state.get() {
-            commands.disconnect_client();
+            if let Some(server_handle) = &seperate_server.handler {
+                server_handle.abort();
+                commands.disconnect_client();
+            } else {
+                commands.disconnect_client();
+            }
+                          
         }
 
         if MultiplayerState::Server == *multiplayer_state.get() {
@@ -177,7 +193,9 @@ pub fn spawn_server_thread(
     steamworks: Res<SteamworksResource>,
     mut multiplayer_state: ResMut<NextState<MultiplayerState>>,
     mut client_setup_info: ResMut<crate::ClientConfigInfo>,
-    mut client_config: ResMut<ClientConfig>,) {
+    mut client_config: ResMut<ClientConfig>,
+    mut seperate_server: ResMut<SpawnedServerHandler>,
+) {
    
 
     // we will communicate between the client and server apps via channels
@@ -195,13 +213,11 @@ pub fn spawn_server_thread(
      let v4 = Ipv4Addr::from_str(&client_setup_info.address.as_str()).unwrap();
      let port = client_setup_info.port.parse::<u16>().unwrap();
 
-     let server_addr = SocketAddr::new(IpAddr::V4(v4), port);
-
      // Authentication is where you specify how the client should connect to the server
      // This is where you provide the server address.
      let auth = Authentication::Manual {
          server_addr: LOCAL_SOCKET,
-         client_id: rand::random::<u64>(),
+         client_id: 0,
          private_key: Key::default(),
          protocol_id: 0,
      };
@@ -238,15 +254,16 @@ pub fn spawn_server_thread(
 
     let mut send_app = SendApp(app);
     // std::thread::spawn(move || send_app.run());
-    runtime.spawn_background_task(|_ctx| async move {
+    let server = runtime.spawn_background_task(|_ctx| async move {
         send_app.run()
     });
+
+    seperate_server.handler = Some(server);
 
     info!("Spawned Server as background task");
 
     client_setup_info.seperate_mode = true;
 
-    sleep(Duration::from_secs(4));
     multiplayer_state.set(MultiplayerState::Client);
 
 
