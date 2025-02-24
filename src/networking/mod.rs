@@ -200,7 +200,7 @@ pub fn spawn_server_thread(
      // Authentication is where you specify how the client should connect to the server
      // This is where you provide the server address.
      let auth = Authentication::Manual {
-         server_addr: server_addr,
+         server_addr: LOCAL_SOCKET,
          client_id: rand::random::<u64>(),
          private_key: Key::default(),
          protocol_id: 0,
@@ -239,7 +239,7 @@ pub fn spawn_server_thread(
     let mut send_app = SendApp(app);
     // std::thread::spawn(move || send_app.run());
     runtime.spawn_background_task(|_ctx| async move {
-        move || send_app.run()
+        send_app.run()
     });
 
     info!("Spawned Server as background task");
