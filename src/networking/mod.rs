@@ -12,7 +12,7 @@ use bevy::{
 };
 use bevy_tokio_tasks::{tokio::task::JoinHandle, TokioTasksRuntime};
 use myclient::ExampleClientPlugin;
-use lightyear::{client::{config::{ClientConfig, NetcodeConfig}, networking}, prelude::{self, client::{Authentication, ClientCommandsExt, ClientTransport, IoConfig, NetConfig, NetworkingState}, server::ServerCommandsExt, *}};
+use lightyear::{client::{config::{ClientConfig, NetcodeConfig}, networking}, prelude::{self, client::{Authentication, ClientCommandsExt, ClientTransport, IoConfig, NetConfig, NetworkingState}, server::{NetworkingState as ServerNetworkingState, ServerCommandsExt}, *}};
 use lightyear::prelude::{client, server};
 use lightyear::{inputs::leafwing::input_buffer::InputBuffer, prelude::*, shared::replication::components::Controlled, transport::LOCAL_SOCKET};
 use parking_lot::RwLock;
@@ -75,7 +75,7 @@ impl Plugin for NetworkingPlugin {
         app.add_systems(OnEnter(MultiplayerState::Client), myclient::setup_client) // Starts the client with information in ClientConfigInfo (see main.rs and menu.rs)
             .add_systems(OnEnter(MultiplayerState::HostServer), myserver::setup_server)
             .add_systems(
-                OnEnter(NetworkingState::Connected),
+                OnEnter(ServerNetworkingState::Started),
                 myclient::setup_host_client.run_if(in_state(MultiplayerState::HostServer)),
             ) //Waits until server is started to start the client
             .add_systems(OnEnter(MultiplayerState::ClientSpawnServer), spawn_server_thread);
