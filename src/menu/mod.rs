@@ -80,6 +80,7 @@ struct SelectedOption;
 #[derive(Component)]
 enum MenuButtonAction {
     HostServerAndJoin,
+    SeperateAndJoin,
     JoinServerScreen,
     MainMenu,
     JoinSteamFriend(SteamId),
@@ -181,15 +182,31 @@ fn main_menu_setup(mut commands: Commands) {
                             Button,
                             button_node.clone(),
                             BackgroundColor(NORMAL_BUTTON),
-                            MenuButtonAction::HostServerAndJoin,
+                            MenuButtonAction::SeperateAndJoin,
                         ))
                         .with_children(|parent| {
                             parent.spawn((
-                                Text::new("Play"),
+                                Text::new("Play Seperate"),
                                 button_text_font.clone(),
                                 TextColor(TEXT_COLOR),
                             ));
                         });
+
+                    parent
+                        .spawn((
+                            Button,
+                            button_node.clone(),
+                            BackgroundColor(NORMAL_BUTTON),
+                            MenuButtonAction::HostServerAndJoin,
+                        ))
+                        .with_children(|parent| {
+                            parent.spawn((
+                                Text::new("Play Host"),
+                                button_text_font.clone(),
+                                TextColor(TEXT_COLOR),
+                            ));
+                        });
+
                     parent
                         .spawn((
                             Button,
@@ -204,6 +221,7 @@ fn main_menu_setup(mut commands: Commands) {
                                 TextColor(TEXT_COLOR),
                             ));
                         });
+                        
                     parent
                         .spawn((
                             Button,
@@ -213,11 +231,12 @@ fn main_menu_setup(mut commands: Commands) {
                         ))
                         .with_children(|parent| {
                             parent.spawn((
-                                Text::new("Host Server"),
+                                Text::new("Just Server"),
                                 button_text_font.clone(),
                                 TextColor(TEXT_COLOR),
                             ));
                         });
+                    
 
                     // parent
                     //     .spawn((
@@ -280,7 +299,6 @@ fn menu_action(
                     menu_state.set(MenuState::Disabled);
                     multiplayer_state.set(MultiplayerState::HostServer)
                 }
-
                 MenuButtonAction::JoinSteamFriend(id) => {
                     client_setup_info.steam_testing = true;
                     client_setup_info.steam_connect_to = Some(*id);
@@ -302,6 +320,11 @@ fn menu_action(
                     menu_state.set(MenuState::Disabled);
                     multiplayer_state.set(MultiplayerState::Server)
                 }
+                MenuButtonAction::SeperateAndJoin => {
+                    game_state.set(GameState::Game);
+                    menu_state.set(MenuState::Disabled);
+                    multiplayer_state.set(MultiplayerState::ClientSpawnServer);
+                },
             }
         }
     }

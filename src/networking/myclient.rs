@@ -10,7 +10,8 @@ use avian2d::prelude::{Collider, LinearVelocity, Position, Sensor};
 use bevy::prelude::*;
 
 use leafwing_input_manager::prelude::{ActionState, InputMap};
-pub use lightyear::prelude::client::*;
+use lightyear::prelude::*;
+use lightyear::prelude::{client::*, server};
 use lightyear::{inputs::leafwing::input_buffer::InputBuffer, prelude::*, shared::replication::components::Controlled, transport::LOCAL_SOCKET};
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
@@ -79,6 +80,18 @@ pub fn setup_client(
     client_setup_info: Res<crate::ClientConfigInfo>,
     mut steamworks: ResMut<SteamworksResource>,
 ) {
+    
+    if client_setup_info.seperate_mode {
+       
+
+        client_config.prediction.set_fixed_input_delay_ticks(10);
+        client_config.prediction.correction_ticks_factor = 1.5;
+        client_config.prediction.maximum_predicted_ticks = 100;
+
+        commands.connect_client();
+        return
+    }
+    
     if client_setup_info.steam_testing {
         if let Some(id) = client_setup_info.steam_connect_to {
             let net_config = NetConfig::Steam {
@@ -148,7 +161,7 @@ pub fn setup_client(
         auth,
         io,
         config: NetcodeConfig {
-            client_timeout_secs: 4,
+            client_timeout_secs: 10,
             ..Default::default()
         },
     };

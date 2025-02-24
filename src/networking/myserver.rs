@@ -10,11 +10,14 @@ use crate::{GameCleanUp, GameState, MultiplayerState};
 use bevy::color::palettes::css;
 use bevy::prelude::*;
 use bevy::time::common_conditions::on_timer;
+use crossbeam_channel::{Receiver, Sender};
 use lightyear::connection::server::{ConnectionRequestHandler, DeniedReason};
 use lightyear::prelude::client::{Confirmed, Predicted};
 use lightyear::prelude::server::*;
 use lightyear::prelude::*;
 use lightyear::server::input::leafwing::InputSystemSet;
+use lightyear::transport::config::SharedIoConfig;
+use lightyear::transport::LOCAL_SOCKET;
 
 use std::f32::consts::TAU;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
@@ -37,12 +40,21 @@ pub struct Global {
 pub struct ExampleServerPlugin {
     pub(crate) predict_all: bool,
     pub steam_client: Arc<parking_lot::lock_api::RwLock<parking_lot::RawRwLock, SteamworksClient>>,
+    pub option_sender: Option<Sender<Vec<u8>>>,
+    pub option_reciever: Option<Receiver<Vec<u8>>>,
 }
 
 /// Here we create the lightyear [`ServerPlugins`]
 fn build_server_plugin(
     steam_client: Arc<parking_lot::lock_api::RwLock<parking_lot::RawRwLock, SteamworksClient>>,
+    option_sender: Option<Sender<Vec<u8>>>,
+    option_reciever: Option<Receiver<Vec<u8>>>,
 ) -> ServerPlugins {
+
+    let mut net_vec = Vec::new();
+
+
+
     // The IoConfig will specify the transport to use.
     let io = IoConfig {
         // the address specified here is the server_address, because we open a UDP socket on the server
@@ -62,6 +74,8 @@ fn build_server_plugin(
         config: NetcodeConfig::default(),
     };
 
+    net_vec.push(net_config);
+
     let steam_config = NetConfig::Steam {
         steamworks_client: Some(steam_client.clone()),
         config: SteamConfig {
@@ -74,12 +88,41 @@ fn build_server_plugin(
         conditioner: None,
     };
 
+    net_vec.push(steam_config);
+
+
+    if let Some(sender) = option_sender {
+        if let Some(receiver) = option_reciever {
+            
+  // The IoConfig will specify the transport to use.
+           // create server app, which will be headless when we have client app in same process
+           let extra_transport_configs = server::ServerTransport::Channels {
+                // even if we communicate via channels, we need to provide a socket address for the client
+                channels: vec![(LOCAL_SOCKET, receiver, sender)],
+            };
+
+             // The IoConfig will specify the transport to use.
+            let io = IoConfig {
+                // the address specified here is the server_address, because we open a UDP socket on the server
+                transport: extra_transport_configs,
+                conditioner: None,
+                ..default()
+            };
+
+            let seperate_net = NetConfig::Netcode { config: NetcodeConfig::default(), io,};
+
+            net_vec.push(seperate_net);
+
+
+        }
+    }
+
     let config = ServerConfig {
         // part of the config needs to be shared between the client and server
         shared: shared_config(),
         // we can specify multiple net configs here, and the server will listen on all of them
         // at the same time. Here we will only use one
-        net: vec![steam_config, net_config],
+        net: net_vec,
         replication: ReplicationConfig {
             // we will send updates to the clients every 100ms
             ..default()
@@ -95,7 +138,10 @@ impl Plugin for ExampleServerPlugin {
             predict_all: self.predict_all,
         });
         // add lightyear plugins
-        app.add_plugins(build_server_plugin(self.steam_client.clone()));
+        app.add_plugins(build_server_plugin(self.steam_client.clone(), self.option_sender.clone(), self.option_reciever.clone()));
+
+
+        app.add_systems(OnEnter(MultiplayerState::Server), setup_server);
 
         app.add_systems(OnEnter(GameState::Game), init.run_if(in_state(MultiplayerState::Server).or(in_state(MultiplayerState::HostServer))));
 
@@ -128,27 +174,27 @@ impl Plugin for ExampleServerPlugin {
 }
 
 pub fn setup_server(mut commands: Commands, mut server_config: ResMut<ServerConfig>) {
-    let port = "5000".parse::<u16>().unwrap();
+    // let port = "5000".parse::<u16>().unwrap();
 
-    let server_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), port);
+    // let server_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), port);
 
-    // The IoConfig will specify the transport to use.
-    let io = IoConfig {
-        // the address specified here is the server_address, because we open a UDP socket on the server
-        transport: ServerTransport::UdpSocket(server_addr),
-        conditioner: Some(LinkConditionerConfig { incoming_latency: Duration::from_millis(50), incoming_jitter:  Duration::from_millis(10), incoming_loss: 0.05 }),
-        ..default()
-    };
-    // The NetConfig specifies how we establish a connection with the server.
-    // We can use either Steam (in which case we will use steam sockets and there is no need to specify
-    // our own io) or Netcode (in which case we need to specify our own io).
-    let net_config = NetConfig::Netcode {
-        io,
-        config: NetcodeConfig::default(),
-    };
+    // // The IoConfig will specify the transport to use.
+    // let io = IoConfig {
+    //     // the address specified here is the server_address, because we open a UDP socket on the server
+    //     transport: ServerTransport::UdpSocket(server_addr),
+    //     conditioner: Some(LinkConditionerConfig { incoming_latency: Duration::from_millis(50), incoming_jitter:  Duration::from_millis(10), incoming_loss: 0.05 }),
+    //     ..default()
+    // };
+    // // The NetConfig specifies how we establish a connection with the server.
+    // // We can use either Steam (in which case we will use steam sockets and there is no need to specify
+    // // our own io) or Netcode (in which case we need to specify our own io).
+    // let net_config = NetConfig::Netcode {
+    //     io,
+    //     config: NetcodeConfig::default(),
+    // };
 
-    server_config.net.remove(1);
-    server_config.net.push(net_config);
+    // server_config.net.remove(1);
+    // server_config.net.push(net_config);
 
     // Start the server
     commands.start_server();
