@@ -16,6 +16,7 @@ use networking::{myserver::ExampleServerPlugin, shared::SharedPlugin, Networking
 use parking_lot::RwLock;
 use steamworks::SteamId;
 
+
 #[derive(Component)]
 pub struct GameCleanUp;
 // Enum that will be used as a global state for the game
@@ -52,7 +53,7 @@ struct ClientConfigInfo {
 
 
 
-
+#[derive(Event)]
 pub enum ClientCommands {
     StartServer,
     StopServer,
@@ -98,9 +99,9 @@ fn main() {
         .insert_resource(Gravity(Vec2::ZERO));
 
 
-    let game_state = GameState::Game;
+    let game_state = GameState::Menu;
     app.insert_state(game_state);
-    let server_multiplayer_state = MultiplayerState::Server;
+    let server_multiplayer_state = MultiplayerState::None;
     app.insert_state(server_multiplayer_state);
 
 

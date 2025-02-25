@@ -10,7 +10,7 @@ use crate::{ClientCommands, GameCleanUp, GameState, MultiplayerState};
 use bevy::color::palettes::css;
 use bevy::prelude::*;
 use bevy::time::common_conditions::on_timer;
-use crossbeam_channel::{Receiver, Sender};
+use crossbeam_channel::{Receiver, Sender, TryRecvError};
 use lightyear::connection::server::{ConnectionRequestHandler, DeniedReason};
 use lightyear::prelude::client::{Confirmed, Predicted};
 use lightyear::prelude::server::*;
@@ -37,13 +37,12 @@ pub struct Global {
     predict_all: bool,
 }
 
-#[derive(Resource)]
-pub struct ClientCommandsReceive {
-    pub client_recieve_commands: Option<Receiver<ClientCommands>>,
-}
 
+
+#[derive(Clone, Debug, TypePath)]
 pub struct ExampleServerPlugin {
     pub(crate) predict_all: bool,
+
     pub steam_client: Arc<parking_lot::lock_api::RwLock<parking_lot::RawRwLock, SteamworksClient>>,
     pub option_sender: Option<Sender<Vec<u8>>>,
     pub option_reciever: Option<Receiver<Vec<u8>>>,
@@ -147,9 +146,10 @@ impl Plugin for ExampleServerPlugin {
         app.add_plugins(build_server_plugin(self.steam_client.clone(), self.option_sender.clone(), self.option_reciever.clone()));
 
 
-        
-
-        app.insert_resource(ClientCommandsReceive { client_recieve_commands: self.client_recieve_commands.clone() });
+        if let Some(receiver) = &self.client_recieve_commands {
+            app.add_crossbeam_event(receiver.clone());
+        }
+       
         
 
         app.add_systems(OnEnter(MultiplayerState::Server), setup_server);
@@ -171,16 +171,8 @@ impl Plugin for ExampleServerPlugin {
             Update,
             (
                 handle_connections,
-                handle_disconnections,
                 update_player_metrics.run_if(on_timer(Duration::from_secs(1))),
             ).run_if(in_state(MultiplayerState::Server).or(in_state(MultiplayerState::HostServer))),
-        );
-
-        app.add_systems(
-            Update,
-            (
-                handle_disconnections,
-            ).run_if(in_state(MultiplayerState::Server)),
         );
 
         app.add_systems(FixedUpdate, handle_client_commands);
@@ -274,41 +266,71 @@ pub(crate) fn replicate_inputs(
 }
 
 
-pub(crate) fn handle_disconnections(
-    mut connections: EventReader<DisconnectEvent>,
-    mut commands: Commands,
-    mut app_exit_events: EventWriter<AppExit>,) {
 
-        for connection in connections.read() {
-            if connection.client_id.to_bits() == 0 {
-                app_exit_events.send(AppExit::Success);
-            } 
-        }
+
+#[derive(Resource)]
+struct CrossbeamEventReceiver<T: Event>(Receiver<T>);
+
+pub trait CrossbeamEventApp {
+    fn add_crossbeam_event<T: Event>(&mut self, receiver: Receiver<T>) -> &mut Self;
+}
+
+impl CrossbeamEventApp for App {
+    fn add_crossbeam_event<T: Event>(&mut self, receiver: Receiver<T>) -> &mut Self {
+        self.insert_resource(CrossbeamEventReceiver::<T>(receiver));
+        self.add_event::<T>();
+        self.add_systems(PreUpdate, process_crossbeam_messages::<T>);
+        self
+    }
 }
 
 
-pub(crate) fn handle_client_commands(
-    client_commands: Res<ClientCommandsReceive>,
-    mut commands: Commands,
-    mut multiplayer_state: ResMut<NextState<MultiplayerState>>,) {
-
-        if let Some(receiver) = &client_commands.client_recieve_commands {
-            for c in receiver.iter() {
-                match c {
-                    ClientCommands::StartServer => {
-                        info!("Server received StartServer command");
-                        // multiplayer_state.set(MultiplayerState::Server);
-                        commands.start_server();
-                    },
-                    ClientCommands::StopServer => {
-                        info!("Server received StartServer command");
-                        commands.stop_server();
-                        // multiplayer_state.set(MultiplayerState::None);
-
-                    },
-                }
+fn process_crossbeam_messages<T: Event>(
+    receiver: Res<CrossbeamEventReceiver<T>>,
+    mut events: EventWriter<T>,
+) {
+    loop {
+        match receiver.0.try_recv() {
+            Ok(msg) => {
+                events.send(msg);
+            }
+            Err(TryRecvError::Disconnected) => {
+                panic!("sender resource dropped")
+            }
+            Err(TryRecvError::Empty) => {
+                break;
             }
         }
+    }
+}
+
+
+
+pub(crate) fn handle_client_commands(
+    mut client_commands: EventReader<ClientCommands>,
+    mut commands: Commands,
+    mut multiplayer_state: ResMut<NextState<MultiplayerState>>,
+    mut game_state: ResMut<NextState<GameState>>,
+    ) {
+
+    for c in  client_commands.read() {
+        
+        match c {
+            ClientCommands::StartServer => {
+                info!("Server received StartServer command");
+                multiplayer_state.set(MultiplayerState::Server);
+                game_state.set(GameState::Game);
+            },
+            ClientCommands::StopServer => {
+                info!("Server received StopServer command");
+                commands.stop_server();
+                multiplayer_state.set(MultiplayerState::None);
+                game_state.set(GameState::Menu);
+
+
+            },
+        }
+    }
 }
 
 

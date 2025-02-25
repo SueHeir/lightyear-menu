@@ -64,14 +64,14 @@ impl Plugin for NetworkingPlugin {
         });
 
 
-        //Steam netconfig is added when building the application.
-        app.add_plugins(ExampleServerPlugin {
-            predict_all: true,
-            steam_client: self.steam_client.clone(),
-            option_reciever: None,
-            option_sender: None,
-            client_recieve_commands: None,
-        });
+        // //Steam netconfig is added when building the application.
+        // app.add_plugins(ExampleServerPlugin {
+        //     predict_all: true,
+        //     steam_client: self.steam_client.clone(),
+        //     option_reciever: None,
+        //     option_sender: None,
+        //     client_recieve_commands: None,
+        // });
 
         app.add_plugins(ExampleClientPlugin {client_commands: self.client_commands_send.clone()});
 
@@ -112,12 +112,16 @@ pub fn esc_to_disconnect(
     keys: Res<ButtonInput<KeyCode>>,
     mut commands: Commands,
     multiplayer_state: Res<State<MultiplayerState>>,
+    client_commands: Res<ClientCommandsSender>,
     mut game_state: ResMut<NextState<GameState>>,
 ) {
     if keys.just_pressed(KeyCode::Escape) {
         if MultiplayerState::Client == *multiplayer_state.get() {
            
             commands.disconnect_client();
+            let result =  client_commands.client_commands.send(ClientCommands::StopServer);
+
+            info!("{:?}", result);
             
                           
         }
@@ -143,15 +147,19 @@ pub fn spawn_server_thread(
     mut client_config: ResMut<ClientConfig>,
     seperate_client_config: Res<SeperateClientConfig>,
 
-    client_commands: Res<ClientCommandsSender>,
+    mut client_commands: ResMut<ClientCommandsSender>,
 
 ) {
    
-    let _ =  client_commands.client_commands.send(ClientCommands::StartServer);
+    let result =  client_commands.client_commands.send(ClientCommands::StartServer);
+
+    info!("{:?}", result);
 
     client_config.net = seperate_client_config.client_config.clone();
 
     client_setup_info.seperate_mode = true;
+
+    sleep(Duration::from_millis(1000));
 
     multiplayer_state.set(MultiplayerState::Client);
 
