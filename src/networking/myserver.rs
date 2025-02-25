@@ -94,7 +94,7 @@ fn build_server_plugin(
     if let Some(sender) = option_sender {
         if let Some(receiver) = option_reciever {
             
-  // The IoConfig will specify the transport to use.
+        // The IoConfig will specify the transport to use.
            // create server app, which will be headless when we have client app in same process
            let extra_transport_configs = server::ServerTransport::Channels {
                 // even if we communicate via channels, we need to provide a socket address for the client

@@ -26,5 +26,4 @@ avian2d = {version = "0.2", features = [  "2d","f32","parry-f32","parallel","ser
 leafwing-input-manager = "0.16"
 bevy-inspector-egui = "0.29.1"
 bevy_simple_text_input = "0.10"
-bevy-tokio-tasks = "0.15"
 

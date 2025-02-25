@@ -2,18 +2,17 @@ mod camera;
 mod menu;
 mod networking;
 
-use std::sync::Arc;
+use std::{net::Ipv4Addr, str::FromStr, sync::Arc, time::Duration};
 
 use avian2d::prelude::*;
-use bevy::prelude::*;
+use bevy::{app::ScheduleRunnerPlugin, prelude::*, winit::WinitPlugin};
 use bevy_simple_text_input::TextInputPlugin;
 
-use bevy_tokio_tasks::tokio;
 // use iyes_perf_ui::PerfUiPlugin;
 use camera::CameraPlugin;
-use lightyear::prelude::{SteamworksClient};
+use lightyear::{client::config::NetcodeConfig, prelude::{client::{Authentication, ClientTransport, IoConfig, NetConfig}, CompressionConfig, Key, SteamworksClient}, transport::LOCAL_SOCKET};
 use menu::MenuPlugin;
-use networking::{myserver::ExampleServerPlugin, new_headless_app, shared::SharedPlugin, NetworkingPlugin};
+use networking::{myserver::ExampleServerPlugin, shared::SharedPlugin, NetworkingPlugin};
 use parking_lot::RwLock;
 use steamworks::SteamId;
 
@@ -51,25 +50,66 @@ struct ClientConfigInfo {
     steam_connect_to: Option<SteamId>,
 }
 
+
+
+
 fn main() {
-    //Test your server is working
-    // let steam_client = Arc::new(RwLock::new(SteamworksClient::new_with_app_id(480)));
-    // let mut app = new_headless_app();
-    // app.add_plugins(PhysicsPlugins::default())
-    //     .insert_resource(Gravity(Vec2::ZERO));
+    
+    // we will communicate between the client and server apps via channels
+    let (from_server_send, from_server_recv) = crossbeam_channel::unbounded();
+    let (to_server_send, to_server_recv) = crossbeam_channel::unbounded();
+
+    // create client app
+    let io = IoConfig {
+        // the address specified here is the client_address, because we open a UDP socket on the client
+        transport: ClientTransport::LocalChannel { recv: from_server_recv, send: to_server_send },
+        conditioner: None,
+        compression: CompressionConfig::None,
+     };
+
+     // Authentication is where you specify how the client should connect to the server
+     // This is where you provide the server address.
+     let auth = Authentication::Manual {
+         server_addr: LOCAL_SOCKET,
+         client_id: 0,
+         private_key: Key::default(),
+         protocol_id: 0,
+     };
+
+     let netcode_config = NetConfig::Netcode {  
+         auth,
+         io,
+         config: NetcodeConfig {
+             client_timeout_secs: 10,
+             ..Default::default()
+         },};
 
 
-    // let game_state = GameState::Game;
-    // app.insert_state(game_state);
-    // let server_multiplayer_state = MultiplayerState::Server;
-    // app.insert_state(server_multiplayer_state);
 
-    // app.add_plugins(ExampleServerPlugin { predict_all: true, steam_client: steam_client.clone(), option_sender: None, option_reciever: None});
+    let mut app = new_headless_app();
+    app.add_plugins(PhysicsPlugins::default())
+        .insert_resource(Gravity(Vec2::ZERO));
 
 
-    // app.add_plugins(SharedPlugin);
-    // app.run();
+    let game_state = GameState::Game;
+    app.insert_state(game_state);
+    let server_multiplayer_state = MultiplayerState::Server;
+    app.insert_state(server_multiplayer_state);
 
+
+    let steam_client: Arc<parking_lot::lock_api::RwLock<parking_lot::RawRwLock, SteamworksClient>> = Arc::new(RwLock::new(SteamworksClient::new_with_app_id(480)));
+
+    app.add_plugins(ExampleServerPlugin { predict_all: true, steam_client: steam_client.clone(), option_sender: Some(from_server_send), option_reciever: Some(to_server_recv)});
+
+
+    app.add_plugins(SharedPlugin);
+
+
+    let mut send_app = SendApp(app);
+    std::thread::spawn(move || send_app.run());
+
+
+    info!("Spawned Server as background task");
 
 
     let client_config = ClientConfigInfo {
@@ -90,21 +130,13 @@ fn main() {
             }),
             ..Default::default()
         }))
-        .add_plugins(bevy_tokio_tasks::TokioTasksPlugin {
-            make_runtime: Box::new(|| {
-                let mut runtime = tokio::runtime::Builder::new_multi_thread();
-                runtime.enable_all();
-                runtime.build().unwrap()
-            }),
-            ..bevy_tokio_tasks::TokioTasksPlugin::default()
-        })
 
         //Avian Physics
         .add_plugins(PhysicsPlugins::default().build())
         .insert_resource(Gravity(Vec2::ZERO))
         .add_plugins(PhysicsDebugPlugin::default())
         //Lightyear Setup
-        .add_plugins(NetworkingPlugin)
+        .add_plugins(NetworkingPlugin { steam_client: steam_client.clone(), client_config: netcode_config })
         .insert_resource(client_config)
         //Menu Setup
         .init_state::<GameState>()
@@ -123,3 +155,50 @@ fn despawn_screen<T: Component>(to_despawn: Query<Entity, With<T>>, mut commands
         commands.entity(entity).despawn_recursive();
     }
 }
+
+
+pub fn new_headless_app() -> App {
+    let mut app = App::new();
+    app.add_plugins(
+        DefaultPlugins
+            .set(ImagePlugin::default_nearest())
+            // Not strictly necessary, as the inclusion of ScheduleRunnerPlugin below
+            // replaces the bevy_winit app runner and so a window is never created.
+            .set(WindowPlugin {
+                primary_window: None,
+                exit_condition: bevy::window::ExitCondition::DontExit,
+                ..default()
+            })
+            // WinitPlugin will panic in environments without a display server.
+            .disable::<WinitPlugin>(),
+    );
+
+    // ScheduleRunnerPlugin provides an alternative to the default bevy_winit app runner, which
+    // manages the loop without creating a window.
+    app.add_plugins(ScheduleRunnerPlugin::run_loop(
+            // Run 60 times per second.
+            Duration::from_secs_f64(1.0 / 60.0),
+        ));
+    // app.add_plugins((
+    //     MinimalPlugins,
+    //     StatesPlugin,
+    //     log_plugin(),
+    //     HierarchyPlugin,
+    //     DiagnosticsPlugin,
+    // ));
+    app
+}
+
+
+/// App that is Send.
+/// Used as a convenient workaround to send an App to a separate thread,
+/// if we know that the App doesn't contain NonSend resources.
+struct SendApp(App);
+
+unsafe impl Send for SendApp {}
+impl SendApp {
+    fn run(&mut self) {
+        self.0.run();
+    }
+}
+
