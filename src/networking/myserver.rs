@@ -182,6 +182,8 @@ impl Plugin for ExampleServerPlugin {
                 handle_disconnections,
             ).run_if(in_state(MultiplayerState::Server)),
         );
+
+        app.add_systems(FixedUpdate, handle_client_commands);
         
 
         app.add_systems(
@@ -281,6 +283,31 @@ pub(crate) fn handle_disconnections(
             if connection.client_id.to_bits() == 0 {
                 app_exit_events.send(AppExit::Success);
             } 
+        }
+}
+
+
+pub(crate) fn handle_client_commands(
+    client_commands: Res<ClientCommandsReceive>,
+    mut commands: Commands,
+    mut multiplayer_state: ResMut<NextState<MultiplayerState>>,) {
+
+        if let Some(receiver) = &client_commands.client_recieve_commands {
+            for c in receiver.iter() {
+                match c {
+                    ClientCommands::StartServer => {
+                        info!("Server received StartServer command");
+                        // multiplayer_state.set(MultiplayerState::Server);
+                        commands.start_server();
+                    },
+                    ClientCommands::StopServer => {
+                        info!("Server received StartServer command");
+                        commands.stop_server();
+                        // multiplayer_state.set(MultiplayerState::None);
+
+                    },
+                }
+            }
         }
 }
 
