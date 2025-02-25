@@ -12,6 +12,8 @@ use avian2d::prelude::*;
 use bevy::ecs::query::QueryData;
 use bevy::prelude::*;
 use bevy::utils::Duration;
+use crossbeam_channel::Receiver;
+use crossbeam_channel::TryRecvError;
 use leafwing_input_manager::prelude::ActionState;
 use lightyear::prelude::client::*;
 use lightyear::prelude::server::ReplicationTarget;
@@ -23,8 +25,54 @@ pub const SERVER_REPLICATION_INTERVAL: Duration = Duration::from_millis(20);
 pub const SERVER_ADDR: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 5000);
 pub const MAX_VELOCITY: f32 = 500.0;
 const WALL_SIZE: f32 = 350.0;
+
+
+
+
+
+
+#[derive(Resource)]
+struct CrossbeamEventReceiver<T: Event>(Receiver<T>);
+
+pub trait CrossbeamEventApp {
+    fn add_crossbeam_event<T: Event>(&mut self, receiver: Receiver<T>) -> &mut Self;
+}
+
+impl CrossbeamEventApp for App {
+    fn add_crossbeam_event<T: Event>(&mut self, receiver: Receiver<T>) -> &mut Self {
+        self.insert_resource(CrossbeamEventReceiver::<T>(receiver));
+        self.add_event::<T>();
+        self.add_systems(PreUpdate, process_crossbeam_messages::<T>);
+        self
+    }
+}
+
+
+fn process_crossbeam_messages<T: Event>(
+    receiver: Res<CrossbeamEventReceiver<T>>,
+    mut events: EventWriter<T>,
+) {
+    loop {
+        match receiver.0.try_recv() {
+            Ok(msg) => {
+                events.send(msg);
+            }
+            Err(TryRecvError::Disconnected) => {
+                panic!("sender resource dropped")
+            }
+            Err(TryRecvError::Empty) => {
+                break;
+            }
+        }
+    }
+}
+
+
+
+
 #[derive(Clone)]
 pub struct SharedPlugin;
+
 
 impl Plugin for SharedPlugin {
     fn build(&self, app: &mut App) {

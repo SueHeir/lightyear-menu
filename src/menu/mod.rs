@@ -27,7 +27,7 @@ impl Plugin for MenuPlugin {
             .init_state::<MenuState>()
             .add_systems(
                 OnEnter(GameState::Menu),
-                (menu_setup, despawn_screen::<GameCleanUp>),
+                (menu_setup),
             )
             // Systems to handle the main menu screen
             .add_systems(OnEnter(MenuState::Main), main_menu_setup)

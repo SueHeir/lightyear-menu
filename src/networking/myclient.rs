@@ -1,15 +1,15 @@
 //! The client plugin.
-use crate::{networking::shared::apply_action_state_to_player_movement, ClientCommands, GameCleanUp, MultiplayerState};
+use crate::{networking::shared::apply_action_state_to_player_movement, ClientCommands, GameCleanUp, GameState, MultiplayerState, ServerCommands};
 
 use super::{
     protocol::{BallMarker, BulletHitEvent, BulletMarker, ColorComponent, PhysicsBundle, Player, PlayerActions},
-    shared::{process_collisions, shared_config, shared_player_firing, ApplyInputsQuery},
+    shared::{process_collisions, shared_config, shared_player_firing, ApplyInputsQuery, CrossbeamEventApp},
     SteamworksResource,
 };
 use avian2d::prelude::{Collider, LinearVelocity, Position, Sensor};
 use bevy::prelude::*;
 
-use crossbeam_channel::Sender;
+use crossbeam_channel::{Receiver, Sender};
 use leafwing_input_manager::prelude::{ActionState, InputMap};
 use lightyear::prelude::*;
 use lightyear::prelude::{client::*, server};
@@ -25,9 +25,9 @@ pub struct ClientCommandsSender {
     pub client_commands: Sender<ClientCommands>,
 }
 
-
 pub struct ExampleClientPlugin {
     pub(crate) client_commands: Sender<ClientCommands>,
+    pub(crate) server_commands: Receiver<ServerCommands>,
 }
 
 /// Here we create the lightyear [`ClientPlugins`]
@@ -53,19 +53,26 @@ impl Plugin for ExampleClientPlugin {
         // add lightyear plugins
         app.add_plugins(build_host_client_plugin());
 
-            // all actions related-system that can be rolled back should be in FixedUpdate schedule
-            app.add_systems(
-            FixedUpdate,
-            (
-                // in host-server, we don't want to run the movement logic twice
-                // disable this because we also run the movement logic in the server
-                player_movement.run_if(in_state(MultiplayerState::Client)),
-                // we don't spawn bullets during rollback.
-                // if we have the inputs early (so not in rb) then we spawn,
-                // otherwise we rely on normal server replication to spawn them
-                shared_player_firing.run_if(not(is_in_rollback)).run_if(in_state(MultiplayerState::Client)),
-            )
-                .chain(),
+
+
+        app.add_crossbeam_event(self.server_commands.clone());
+
+        app.add_systems(FixedUpdate, handle_server_commands);
+
+
+        // all actions related-system that can be rolled back should be in FixedUpdate schedule
+        app.add_systems(
+        FixedUpdate,
+        (
+            // in host-server, we don't want to run the movement logic twice
+            // disable this because we also run the movement logic in the server
+            player_movement.run_if(in_state(MultiplayerState::Client)),
+            // we don't spawn bullets during rollback.
+            // if we have the inputs early (so not in rb) then we spawn,
+            // otherwise we rely on normal server replication to spawn them
+            shared_player_firing.run_if(not(is_in_rollback)).run_if(in_state(MultiplayerState::Client)),
+        )
+        .chain(),
         );
 
         app.insert_resource(ClientCommandsSender { client_commands: self.client_commands.clone()});
@@ -207,6 +214,23 @@ pub fn setup_host_client(mut commands: Commands, mut client_config: ResMut<Clien
 
     println!("trying to connect")
 }
+
+pub(crate) fn handle_server_commands(
+    mut client_commands: EventReader<ServerCommands>,
+    mut multiplayer_state: ResMut<NextState<MultiplayerState>>,
+    ) {
+
+    for c in  client_commands.read() {
+        
+        match c {
+            ServerCommands::ServerStarted => {
+                info!("client knows server is started!");
+                multiplayer_state.set(MultiplayerState::Client);
+            },
+        }
+    }
+}
+
 
 
 

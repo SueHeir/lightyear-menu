@@ -6,7 +6,7 @@
 //! - read inputs from the clients and move the player entities accordingly
 //!
 //! Lightyear will handle the replication of entities automatically if you add a `Replicate` component to them.
-use crate::{ClientCommands, GameCleanUp, GameState, MultiplayerState};
+use crate::{ClientCommands, GameCleanUp, GameState, MultiplayerState, ServerCommands};
 use bevy::color::palettes::css;
 use bevy::prelude::*;
 use bevy::time::common_conditions::on_timer;
@@ -30,7 +30,7 @@ use avian2d::prelude::*;
 use leafwing_input_manager::prelude::*;
 use lightyear::shared::replication::components::InitialReplicated;
 
-use super::shared::{apply_action_state_to_player_movement, shared_config, ApplyInputsQuery, SERVER_ADDR};
+use super::shared::{apply_action_state_to_player_movement, shared_config, ApplyInputsQuery, CrossbeamEventApp, SERVER_ADDR};
 
 #[derive(Resource)]
 pub struct Global {
@@ -47,6 +47,12 @@ pub struct ExampleServerPlugin {
     pub option_sender: Option<Sender<Vec<u8>>>,
     pub option_reciever: Option<Receiver<Vec<u8>>>,
     pub client_recieve_commands: Option<Receiver<ClientCommands>>,
+    pub server_send_commands: Sender<ServerCommands>,
+}
+
+#[derive(Resource)]
+pub struct ServerCommandSender {
+    pub server_commands: Sender<ServerCommands>,
 }
 
 /// Here we create the lightyear [`ServerPlugins`]
@@ -149,6 +155,11 @@ impl Plugin for ExampleServerPlugin {
         if let Some(receiver) = &self.client_recieve_commands {
             app.add_crossbeam_event(receiver.clone());
         }
+
+        app.insert_resource(ServerCommandSender { server_commands: self.server_send_commands.clone() });
+
+        app.add_systems(OnEnter(NetworkingState::Started), handle_server_started);
+
        
         
 
@@ -188,29 +199,7 @@ impl Plugin for ExampleServerPlugin {
 }
 
 pub fn setup_server(mut commands: Commands, mut server_config: ResMut<ServerConfig>) {
-    // let port = "5000".parse::<u16>().unwrap();
 
-    // let server_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), port);
-
-    // // The IoConfig will specify the transport to use.
-    // let io = IoConfig {
-    //     // the address specified here is the server_address, because we open a UDP socket on the server
-    //     transport: ServerTransport::UdpSocket(server_addr),
-    //     conditioner: Some(LinkConditionerConfig { incoming_latency: Duration::from_millis(50), incoming_jitter:  Duration::from_millis(10), incoming_loss: 0.05 }),
-    //     ..default()
-    // };
-    // // The NetConfig specifies how we establish a connection with the server.
-    // // We can use either Steam (in which case we will use steam sockets and there is no need to specify
-    // // our own io) or Netcode (in which case we need to specify our own io).
-    // let net_config = NetConfig::Netcode {
-    //     io,
-    //     config: NetcodeConfig::default(),
-    // };
-
-    // server_config.net.remove(1);
-    // server_config.net.push(net_config);
-
-    // Start the server
     commands.start_server();
 }
 
@@ -268,41 +257,7 @@ pub(crate) fn replicate_inputs(
 
 
 
-#[derive(Resource)]
-struct CrossbeamEventReceiver<T: Event>(Receiver<T>);
 
-pub trait CrossbeamEventApp {
-    fn add_crossbeam_event<T: Event>(&mut self, receiver: Receiver<T>) -> &mut Self;
-}
-
-impl CrossbeamEventApp for App {
-    fn add_crossbeam_event<T: Event>(&mut self, receiver: Receiver<T>) -> &mut Self {
-        self.insert_resource(CrossbeamEventReceiver::<T>(receiver));
-        self.add_event::<T>();
-        self.add_systems(PreUpdate, process_crossbeam_messages::<T>);
-        self
-    }
-}
-
-
-fn process_crossbeam_messages<T: Event>(
-    receiver: Res<CrossbeamEventReceiver<T>>,
-    mut events: EventWriter<T>,
-) {
-    loop {
-        match receiver.0.try_recv() {
-            Ok(msg) => {
-                events.send(msg);
-            }
-            Err(TryRecvError::Disconnected) => {
-                panic!("sender resource dropped")
-            }
-            Err(TryRecvError::Empty) => {
-                break;
-            }
-        }
-    }
-}
 
 
 
@@ -331,6 +286,13 @@ pub(crate) fn handle_client_commands(
             },
         }
     }
+}
+
+pub(crate) fn handle_server_started(
+    server_commands: Res<ServerCommandSender>,
+) {
+    server_commands.server_commands.send(ServerCommands::ServerStarted);
+
 }
 
 

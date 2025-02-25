@@ -60,12 +60,19 @@ pub enum ClientCommands {
 }
 
 
+#[derive(Event)]
+pub enum ServerCommands {
+    ServerStarted,
+}
+
+
 fn main() {
     
     // we will communicate between the client and server apps via channels
     let (from_server_send, from_server_recv) = crossbeam_channel::unbounded();
     let (to_server_send, to_server_recv) = crossbeam_channel::unbounded();
     let (client_commands_send, client_commands_receive) = crossbeam_channel::unbounded::<ClientCommands>();
+    let (server_commands_send, server_commands_receive) = crossbeam_channel::unbounded::<ServerCommands>();
 
     // create client app
     let io = IoConfig {
@@ -107,10 +114,21 @@ fn main() {
 
     let steam_client: Arc<parking_lot::lock_api::RwLock<parking_lot::RawRwLock, SteamworksClient>> = Arc::new(RwLock::new(SteamworksClient::new_with_app_id(480)));
 
-    app.add_plugins(ExampleServerPlugin { predict_all: true, steam_client: steam_client.clone(), option_sender: Some(from_server_send), option_reciever: Some(to_server_recv), client_recieve_commands: Some(client_commands_receive.clone())});
+    app.add_plugins(ExampleServerPlugin { 
+        predict_all: true, 
+        steam_client: steam_client.clone(), 
+        option_sender: Some(from_server_send), 
+        option_reciever: Some(to_server_recv), 
+        client_recieve_commands: Some(client_commands_receive.clone()),
+        server_send_commands: server_commands_send.clone(),
+    });
 
 
-    app.add_plugins(SharedPlugin);
+    app.add_plugins(SharedPlugin)
+        .add_systems(
+            OnEnter(GameState::Menu),
+            (despawn_screen::<GameCleanUp>),
+        );
 
 
     let mut send_app = SendApp(app);
@@ -144,7 +162,7 @@ fn main() {
         .insert_resource(Gravity(Vec2::ZERO))
         .add_plugins(PhysicsDebugPlugin::default())
         //Lightyear Setup
-        .add_plugins(NetworkingPlugin { steam_client: steam_client.clone(), client_config: netcode_config, client_commands_send: client_commands_send })
+        .add_plugins(NetworkingPlugin { steam_client: steam_client.clone(), client_config: netcode_config, client_commands_send: client_commands_send, server_commands_receive: server_commands_receive.clone() })
         .insert_resource(client_config)
         //Menu Setup
         .init_state::<GameState>()
@@ -153,6 +171,10 @@ fn main() {
         .add_plugins(TextInputPlugin) //For IP Address Input
         //Game Setup
         .add_plugins(CameraPlugin)
+        .add_systems(
+            OnEnter(GameState::Menu),
+            (despawn_screen::<GameCleanUp>),
+        )
         // .add_plugins(WorldInspectorPlugin::new())
         .run();
 }

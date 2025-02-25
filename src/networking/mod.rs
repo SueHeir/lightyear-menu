@@ -10,7 +10,7 @@ use bevy::{
         app::{AppExtStates, StatesPlugin}, condition::in_state, state::{NextState, OnEnter, State}
     }, window::WindowPlugin, winit::WinitPlugin, MinimalPlugins
 };
-use crossbeam_channel::Sender;
+use crossbeam_channel::{Receiver, Sender};
 use myclient::{ClientCommandsSender, ExampleClientPlugin};
 use lightyear::{client::{config::{ClientConfig, NetcodeConfig}, networking}, prelude::{self, client::{Authentication, ClientCommandsExt, ClientTransport, IoConfig, NetConfig, NetworkingState}, server::{NetworkingState as ServerNetworkingState, ServerCommandsExt}, *}};
 use lightyear::prelude::{client, server};
@@ -22,7 +22,7 @@ use tracing::{info, Level};
 
 use bevy::prelude::*;
 
-use crate::{ClientCommands, GameState, MultiplayerState};
+use crate::{ClientCommands, GameState, MultiplayerState, ServerCommands};
 
 pub mod myclient;
 pub mod protocol;
@@ -47,6 +47,7 @@ pub(crate) struct NetworkingPlugin {
     pub(crate) steam_client: Arc<parking_lot::lock_api::RwLock<parking_lot::RawRwLock, SteamworksClient>>,
     pub(crate) client_config: NetConfig,
     pub(crate) client_commands_send: Sender<ClientCommands>,
+    pub(crate) server_commands_receive: Receiver<ServerCommands>,
 }
 
 impl Plugin for NetworkingPlugin {
@@ -73,7 +74,7 @@ impl Plugin for NetworkingPlugin {
         //     client_recieve_commands: None,
         // });
 
-        app.add_plugins(ExampleClientPlugin {client_commands: self.client_commands_send.clone()});
+        app.add_plugins(ExampleClientPlugin {client_commands: self.client_commands_send.clone(), server_commands: self.server_commands_receive.clone()});
 
         // add our shared plugin containing the protocol and renderer
         app.add_plugins(SharedPlugin);
@@ -159,9 +160,8 @@ pub fn spawn_server_thread(
 
     client_setup_info.seperate_mode = true;
 
-    sleep(Duration::from_millis(1000));
 
-    multiplayer_state.set(MultiplayerState::Client);
+    
 
 
 
