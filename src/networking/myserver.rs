@@ -6,7 +6,7 @@
 //! - read inputs from the clients and move the player entities accordingly
 //!
 //! Lightyear will handle the replication of entities automatically if you add a `Replicate` component to them.
-use crate::{GameCleanUp, GameState, MultiplayerState};
+use crate::{ClientCommands, GameCleanUp, GameState, MultiplayerState};
 use bevy::color::palettes::css;
 use bevy::prelude::*;
 use bevy::time::common_conditions::on_timer;
@@ -37,11 +37,17 @@ pub struct Global {
     predict_all: bool,
 }
 
+#[derive(Resource)]
+pub struct ClientCommandsReceive {
+    pub client_recieve_commands: Option<Receiver<ClientCommands>>,
+}
+
 pub struct ExampleServerPlugin {
     pub(crate) predict_all: bool,
     pub steam_client: Arc<parking_lot::lock_api::RwLock<parking_lot::RawRwLock, SteamworksClient>>,
     pub option_sender: Option<Sender<Vec<u8>>>,
     pub option_reciever: Option<Receiver<Vec<u8>>>,
+    pub client_recieve_commands: Option<Receiver<ClientCommands>>,
 }
 
 /// Here we create the lightyear [`ServerPlugins`]
@@ -140,6 +146,11 @@ impl Plugin for ExampleServerPlugin {
         // add lightyear plugins
         app.add_plugins(build_server_plugin(self.steam_client.clone(), self.option_sender.clone(), self.option_reciever.clone()));
 
+
+        
+
+        app.insert_resource(ClientCommandsReceive { client_recieve_commands: self.client_recieve_commands.clone() });
+        
 
         app.add_systems(OnEnter(MultiplayerState::Server), setup_server);
 

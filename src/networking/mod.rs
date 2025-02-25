@@ -10,7 +10,8 @@ use bevy::{
         app::{AppExtStates, StatesPlugin}, condition::in_state, state::{NextState, OnEnter, State}
     }, window::WindowPlugin, winit::WinitPlugin, MinimalPlugins
 };
-use myclient::ExampleClientPlugin;
+use crossbeam_channel::Sender;
+use myclient::{ClientCommandsSender, ExampleClientPlugin};
 use lightyear::{client::{config::{ClientConfig, NetcodeConfig}, networking}, prelude::{self, client::{Authentication, ClientCommandsExt, ClientTransport, IoConfig, NetConfig, NetworkingState}, server::{NetworkingState as ServerNetworkingState, ServerCommandsExt}, *}};
 use lightyear::prelude::{client, server};
 use lightyear::{inputs::leafwing::input_buffer::InputBuffer, prelude::*, shared::replication::components::Controlled, transport::LOCAL_SOCKET};
@@ -21,7 +22,7 @@ use tracing::{info, Level};
 
 use bevy::prelude::*;
 
-use crate::{GameState, MultiplayerState};
+use crate::{ClientCommands, GameState, MultiplayerState};
 
 pub mod myclient;
 pub mod protocol;
@@ -45,6 +46,7 @@ pub struct SeperateClientConfig {
 pub(crate) struct NetworkingPlugin {
     pub(crate) steam_client: Arc<parking_lot::lock_api::RwLock<parking_lot::RawRwLock, SteamworksClient>>,
     pub(crate) client_config: NetConfig,
+    pub(crate) client_commands_send: Sender<ClientCommands>,
 }
 
 impl Plugin for NetworkingPlugin {
@@ -68,9 +70,10 @@ impl Plugin for NetworkingPlugin {
             steam_client: self.steam_client.clone(),
             option_reciever: None,
             option_sender: None,
+            client_recieve_commands: None,
         });
 
-        app.add_plugins(ExampleClientPlugin);
+        app.add_plugins(ExampleClientPlugin {client_commands: self.client_commands_send.clone()});
 
         // add our shared plugin containing the protocol and renderer
         app.add_plugins(SharedPlugin);
@@ -134,28 +137,17 @@ pub fn esc_to_disconnect(
 
 
 
-
-
-
-
-
-pub fn log_plugin() -> LogPlugin {
-    LogPlugin {
-        level: Level::INFO,
-        filter: "wgpu=error,bevy_render=info,bevy_ecs=warn,bevy_time=warn".to_string(),
-        ..Default::default()
-    }
-}
-
-
 pub fn spawn_server_thread(
     mut multiplayer_state: ResMut<NextState<MultiplayerState>>,
     mut client_setup_info: ResMut<crate::ClientConfigInfo>,
     mut client_config: ResMut<ClientConfig>,
     seperate_client_config: Res<SeperateClientConfig>,
 
+    client_commands: Res<ClientCommandsSender>,
+
 ) {
    
+    let _ =  client_commands.client_commands.send(ClientCommands::StartServer);
 
     client_config.net = seperate_client_config.client_config.clone();
 

@@ -1,5 +1,5 @@
 //! The client plugin.
-use crate::{networking::shared::apply_action_state_to_player_movement, GameCleanUp, MultiplayerState};
+use crate::{networking::shared::apply_action_state_to_player_movement, ClientCommands, GameCleanUp, MultiplayerState};
 
 use super::{
     protocol::{BallMarker, BulletHitEvent, BulletMarker, ColorComponent, PhysicsBundle, Player, PlayerActions},
@@ -9,6 +9,7 @@ use super::{
 use avian2d::prelude::{Collider, LinearVelocity, Position, Sensor};
 use bevy::prelude::*;
 
+use crossbeam_channel::Sender;
 use leafwing_input_manager::prelude::{ActionState, InputMap};
 use lightyear::prelude::*;
 use lightyear::prelude::{client::*, server};
@@ -18,7 +19,16 @@ use std::{
     str::FromStr,
     time::Duration,
 };
-pub struct ExampleClientPlugin;
+
+#[derive(Resource)]
+pub struct ClientCommandsSender {
+    pub client_commands: Sender<ClientCommands>,
+}
+
+
+pub struct ExampleClientPlugin {
+    pub(crate) client_commands: Sender<ClientCommands>,
+}
 
 /// Here we create the lightyear [`ClientPlugins`]
 fn build_host_client_plugin() -> ClientPlugins {
@@ -57,6 +67,9 @@ impl Plugin for ExampleClientPlugin {
             )
                 .chain(),
         );
+
+        app.insert_resource(ClientCommandsSender { client_commands: self.client_commands.clone()});
+
         app.add_systems(
             Update,
             (
