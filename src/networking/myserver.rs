@@ -15,7 +15,7 @@ use lightyear::connection::server::{ConnectionRequestHandler, DeniedReason};
 use lightyear::prelude::client::{Confirmed, Predicted};
 use lightyear::prelude::server::*;
 use lightyear::prelude::*;
-use lightyear::server::input::leafwing::InputSystemSet;
+use lightyear::server::input::InputSystemSet;
 use lightyear::transport::config::SharedIoConfig;
 use lightyear::transport::LOCAL_SOCKET;
 
@@ -130,7 +130,7 @@ fn build_server_plugin(
 
     let config = ServerConfig {
         // part of the config needs to be shared between the client and server
-        shared: shared_config(),
+        shared: shared_config(false),
         // we can specify multiple net configs here, and the server will listen on all of them
         // at the same time. Here we will only use one
         net: net_vec,
@@ -167,12 +167,7 @@ impl Plugin for ExampleServerPlugin {
 
         app.add_systems(OnEnter(GameState::Game), init.run_if(in_state(MultiplayerState::Server).or(in_state(MultiplayerState::HostServer))));
 
-        app.add_systems(
-            PreUpdate,
-            // this system will replicate the inputs of a client to other clients
-            // so that a client can predict other clients
-            replicate_inputs.after(InputSystemSet::ReceiveInputs).run_if(in_state(MultiplayerState::Server).or(in_state(MultiplayerState::HostServer))),
-        );
+        
         // the physics/FixedUpdates systems that consume inputs should be run in this set
         app.add_systems(
             FixedUpdate,
@@ -239,20 +234,6 @@ fn update_player_metrics(
 }
 
 
-pub(crate) fn replicate_inputs(
-    mut receive_inputs: ResMut<Events<ServerReceiveMessage<InputMessage<PlayerActions>>>>,
-    mut send_inputs: EventWriter<ServerSendMessage<InputMessage<PlayerActions>>>,
-) {
-    // rebroadcast the input to other clients
-    // we are calling drain() here so make sure that this system runs after the `ReceiveInputs` set,
-    // so that the server had the time to process the inputs
-    send_inputs.send_batch(receive_inputs.drain().map(|ev| {
-        ServerSendMessage::new_with_target::<InputChannel>(
-            ev.message,
-            NetworkTarget::AllExceptSingle(ev.from),
-        )
-    }));
-}
 
 
 

@@ -37,7 +37,7 @@ fn build_host_client_plugin() -> ClientPlugins {
     let net_config = NetConfig::Local { id: 0 };
     let mut config = ClientConfig {
         // part of the config needs to be shared between the client and server
-        shared: shared_config(),
+        shared: shared_config(true),
         net: net_config,
         ..default()
     };

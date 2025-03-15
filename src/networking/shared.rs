@@ -111,10 +111,11 @@ impl Plugin for SharedPlugin {
 }
 
 
-pub fn shared_config() -> SharedConfig {
+pub fn shared_config(visualizer: bool) -> SharedConfig {
     SharedConfig {
         // send an update every 100ms
         server_replication_send_interval: SERVER_REPLICATION_INTERVAL,
+        visualizer,
         ..default()
     }
 }
@@ -177,10 +178,19 @@ pub(crate) fn init(mut commands: Commands) {
     ));
 }
 
+// #[derive(QueryData)]
+// #[query_data(mutable, derive(Debug))]
+// pub struct ApplyInputsQuery {
+//     pub lin_vel: &'static mut LinearVelocity,
+//     pub player: &'static Player,
+// }
+
 #[derive(QueryData)]
 #[query_data(mutable, derive(Debug))]
 pub struct ApplyInputsQuery {
-    pub lin_vel: &'static mut LinearVelocity,
+    pub ex_force: &'static mut ExternalForce,
+    pub ang_vel: &'static mut AngularVelocity,
+    pub rot: &'static Rotation,
     pub player: &'static Player,
 }
 
@@ -201,28 +211,51 @@ pub fn apply_action_state_to_player_movement(
     //     );
     // }
 
-    let lin_vel = &mut aiq.lin_vel;
+    let ex_force = &mut aiq.ex_force;
+    let rot = &aiq.rot;
+    let ang_vel = &mut aiq.ang_vel;
 
-
-    let mut move_dir = Vec2::ZERO;
+    const THRUSTER_POWER: f32 = 32.;
+    const ROTATIONAL_SPEED: f32 = 4.0;
 
     if action.pressed(&PlayerActions::Up) {
-        move_dir.y += 1.0;
+        ex_force
+            .apply_force(*rot * (Vec2::Y * THRUSTER_POWER))
+            .with_persistence(false);
     }
-    if action.pressed(&PlayerActions::Down) {
-        move_dir.y -= 1.0;
-    }
-    if action.pressed(&PlayerActions::Left) {
-        move_dir.x -= 1.0;
-    }
-    if action.pressed(&PlayerActions::Right) {
-        move_dir.x += 1.0;
+    let desired_ang_vel = if action.pressed(&PlayerActions::Left) {
+        ROTATIONAL_SPEED
+    } else if action.pressed(&PlayerActions::Right) {
+        -ROTATIONAL_SPEED
+    } else {
+        0.0
+    };
+    if ang_vel.0 != desired_ang_vel {
+        ang_vel.0 = desired_ang_vel;
     }
 
-    move_dir = move_dir.normalize();
+    // let lin_vel = &mut aiq.lin_vel;
 
-    lin_vel.x = move_dir.x * 100.0;
-    lin_vel.y = move_dir.y * 100.0;
+
+    // let mut move_dir = Vec2::ZERO;
+
+    // if action.pressed(&PlayerActions::Up) {
+    //     move_dir.y += 1.0;
+    // }
+    // if action.pressed(&PlayerActions::Down) {
+    //     move_dir.y -= 1.0;
+    // }
+    // if action.pressed(&PlayerActions::Left) {
+    //     move_dir.x -= 1.0;
+    // }
+    // if action.pressed(&PlayerActions::Right) {
+    //     move_dir.x += 1.0;
+    // }
+
+    // move_dir = move_dir.normalize();
+
+    // lin_vel.x = move_dir.x * 100.0;
+    // lin_vel.y = move_dir.y * 100.0;
 
 }
 

@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use lightyear::client::components::{ComponentSyncMode, LerpFn};
 use lightyear::client::interpolation::LinearInterpolator;
-use lightyear::prelude::client::{self, LeafwingInputConfig};
+
 use lightyear::prelude::server::{Replicate, SyncTarget};
 use lightyear::prelude::*;
 use lightyear::utils::avian2d::*;
@@ -118,8 +118,8 @@ impl PhysicsBundle {
         Self {
             collider,
             collider_density: ColliderDensity(1.0),
-            rigid_body: RigidBody::Kinematic,
-            locked_axis: LockedAxes::ROTATION_LOCKED,
+            rigid_body: RigidBody::Dynamic,
+            locked_axis: LockedAxes::default(),
             game_clean_up: GameCleanUp,
         }
     }
@@ -236,7 +236,12 @@ pub(crate) struct ProtocolPlugin;
 
 impl Plugin for ProtocolPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(LeafwingInputPlugin::<PlayerActions>::default());
+        app.add_plugins(LeafwingInputPlugin::<PlayerActions> {
+            config: InputConfig::<PlayerActions> {
+                rebroadcast_inputs: true,
+                ..default()
+            }
+        });
 
         // Player is synced as Simple, because we periodically update rtt ping stats
         app.register_component::<Player>(ChannelDirection::ServerToClient)

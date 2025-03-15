@@ -112,7 +112,7 @@ fn main() {
     app.insert_state(server_multiplayer_state);
 
 
-    let steam_client: Arc<parking_lot::lock_api::RwLock<parking_lot::RawRwLock, SteamworksClient>> = Arc::new(RwLock::new(SteamworksClient::new_with_app_id(480)));
+    let steam_client: Arc<parking_lot::lock_api::RwLock<parking_lot::RawRwLock, SteamworksClient>> = Arc::new(RwLock::new(SteamworksClient::new_with_app_id(480).unwrap()));
 
     app.add_plugins(ExampleServerPlugin { 
         predict_all: true, 
