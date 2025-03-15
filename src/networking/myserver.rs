@@ -338,11 +338,11 @@ pub(crate) fn handle_connections(
             ))
             .id();
 
-        commands.entity(player_ent).with_child((
-            Transform::from_translation(Vec3::new(0., 10., 0.)),
-            Sensor,
-            Collider::capsule(8.0, 20.0),
-        ));
+        // commands.entity(player_ent).with_child((
+        //     Transform::from_translation(Vec3::new(0., 10., 0.)),
+        //     Sensor,
+        //     Collider::capsule(8.0, 20.0),
+        // ));
 
         info!("Created entity {player_ent:?} for client {client_id:?}");
         player_n += 1;

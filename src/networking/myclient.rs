@@ -303,12 +303,11 @@ fn handle_new_player(
         info!(?entity, ?client_id, "adding physics to predicted player");
         commands.entity(entity).insert(PhysicsBundle::player_ship());
         
-
-        commands.entity(entity).with_child((
-            Transform::from_translation(Vec3::new(0., 10., 0.)),
-            Sensor,
-            Collider::capsule(8.0, 20.0),
-        ));
+        // commands.entity(entity).with_child((
+        //     Transform::from_translation(Vec3::new(0., 10., 0.)),
+        //     Sensor,
+        //     Collider::capsule(8.0, 20.0),
+        // ));
 
 
     }
