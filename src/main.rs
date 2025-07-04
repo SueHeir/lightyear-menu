@@ -11,6 +11,7 @@ use bevy_simple_text_input::TextInputPlugin;
 // use iyes_perf_ui::PerfUiPlugin;
 use camera::CameraPlugin;
 use lightyear::prelude::server::ServerPlugins;
+use lightyear::crossbeam::CrossbeamIo;
 // use lightyear::{client::config::NetcodeConfig, prelude::{client::{Authentication, ClientTransport, IoConfig, NetConfig}, CompressionConfig, Key, SteamworksClient}, transport::LOCAL_SOCKET};
 // use menu::MenuPlugin;
 use networking::{server::ExampleServerPlugin, shared::SharedPlugin, NetworkingPlugin};
@@ -49,9 +50,7 @@ const TEXT_COLOR: Color = Color::srgb(0.9, 0.9, 0.9);
 struct ClientConfigInfo {
     address: String,
     port: String,
-    local_testing: bool,
     seperate_mode: bool,
-    steam_testing: bool,
     steam_connect_to: Option<SteamId>,
 }
 
@@ -101,6 +100,11 @@ fn main() {
     // let (client_commands_send, client_commands_receive) = crossbeam_channel::unbounded::<ClientCommands>();
     // let (server_commands_send, server_commands_receive) = crossbeam_channel::unbounded::<ServerCommands>();
 
+    let (crossbeam_client, crossbeam_server) = CrossbeamIo::new_pair();
+    let (client_commands_send, client_commands_receive) = crossbeam_channel::unbounded::<ClientCommands>();
+    let (server_commands_send, server_commands_receive) = crossbeam_channel::unbounded::<ServerCommands>();
+
+
     // // create client app
     // let io = IoConfig {
     //     // the address specified here is the client_address, because we open a UDP socket on the client
@@ -147,8 +151,11 @@ fn main() {
     app.add_plugins(SharedPlugin);
     
     app.add_plugins(ExampleServerPlugin { 
+        server_crossbeam: Some(crossbeam_server),
+        client_recieve_commands:  Some(client_commands_receive),
+        server_send_commands:  Some(server_commands_send),
         // predict_all: true, 
-        // steam_client: steam_client.clone(), 
+        // : steam_client.clone(), 
         // option_sender: Some(from_server_send), 
         // option_reciever: Some(to_server_recv), 
         // client_recieve_commands: Some(client_commands_receive.clone()),
@@ -165,7 +172,7 @@ fn main() {
     let cli = Cli::parse();
 
     match cli.mode {
-        Mode::Full => {
+        Mode::Full => { //Client here does spawn server in background
             let mut send_app = SendApp(app);
             std::thread::spawn(move || send_app.run());
             info!("Spawned Server as background task");
@@ -184,14 +191,12 @@ fn main() {
     
 
 
-    // let client_config = ClientConfigInfo {
-    //     address: "127.0.0.1".to_string(),
-    //     port: "5000".to_string(),
-    //     local_testing: true, //Change this to false for testing across multiple computers
-    //     seperate_mode: false,
-    //     steam_testing: false,
-    //     steam_connect_to: None,
-    // };
+    let client_config = ClientConfigInfo {
+        address: "127.0.0.1".to_string(),
+        port: "5000".to_string(),
+        seperate_mode: false,
+        steam_connect_to: None,
+    };
 
     App::new()
         //Bevy Setup
@@ -209,7 +214,7 @@ fn main() {
         // .add_plugins(PhysicsDebugPlugin::default())
         //Lightyear Setup
         .add_plugins(NetworkingPlugin {})
-        // .insert_resource(client_config)
+        .insert_resource(client_config)
         //Menu Setup
         .init_state::<GameState>()
         .init_state::<MultiplayerState>()

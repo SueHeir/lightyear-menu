@@ -7,11 +7,20 @@
 //!
 //! Lightyear will handle the replication of entities automatically if you add a `Replicate` component to them.
 use crate::networking::shared::*;
+use crate::ClientCommands;
+use crate::ServerCommands;
 use bevy::prelude::*;
+use lightyear::crossbeam::CrossbeamIo;
+use crossbeam_channel::Sender;
+use crossbeam_channel::Receiver;
 use lightyear::prelude::server::*;
 use lightyear::prelude::*;
 
-pub struct ExampleServerPlugin;
+pub struct ExampleServerPlugin {
+    pub server_crossbeam: Option<CrossbeamIo>,
+    pub client_recieve_commands:   Option<Receiver<ClientCommands>>,
+    pub server_send_commands:  Option<Sender<ServerCommands>>,
+}
 
 impl Plugin for ExampleServerPlugin {
     fn build(&self, app: &mut App) {

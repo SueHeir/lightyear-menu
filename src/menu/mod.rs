@@ -232,7 +232,7 @@ fn menu_action(
     mut menu_state: ResMut<NextState<MenuState>>,
     mut game_state: ResMut<NextState<GameState>>,
     mut multiplayer_state: ResMut<NextState<MultiplayerState>>,
-    // mut client_setup_info: ResMut<crate::ClientConfigInfo>,
+    mut client_setup_info: ResMut<crate::ClientConfigInfo>,
 ) {
     for (interaction, menu_button_action) in &interaction_query {
         if *interaction == Interaction::Pressed {
@@ -247,26 +247,26 @@ fn menu_action(
                     menu_state.set(MenuState::Main);
                 }
                 MenuButtonAction::JoinSteamFriend(id) => {
-                    // client_setup_info.steam_testing = true;
-                    // client_setup_info.steam_connect_to = Some(*id);
+                    
+                    client_setup_info.steam_connect_to = Some(*id);
 
                     game_state.set(GameState::Game);
                     menu_state.set(MenuState::Disabled);
                     multiplayer_state.set(MultiplayerState::Client)
                 }
                 MenuButtonAction::JoinServer => {
-                    // if Ipv4Addr::from_str(&client_setup_info.address).is_ok() {
+                    if Ipv4Addr::from_str(&client_setup_info.address).is_ok() {
                         // client_setup_info.address = text_input_value.single().0.clone();
                         game_state.set(GameState::Game);
                         menu_state.set(MenuState::Disabled);
                         multiplayer_state.set(MultiplayerState::Client)
-                    // }
+                    }
                 }
                 MenuButtonAction::SeperateAndJoin => {
                     game_state.set(GameState::Game);
                     menu_state.set(MenuState::Disabled);
-                    //TODO multiplayer_state.set(MultiplayerState::ClientSpawnServer);
-                    multiplayer_state.set(MultiplayerState::Client);
+                    multiplayer_state.set(MultiplayerState::ClientSpawnServer);
+                    // multiplayer_state.set(MultiplayerState::Client);
                 },
             }
         }
@@ -414,18 +414,18 @@ fn join_server_menu_setup(mut commands: Commands ) {//mut steamworks: ResMut<Ste
 
 fn listener(
     mut events: EventReader<TextInputSubmitEvent>,
-    // mut client_setup_info: ResMut<crate::ClientConfigInfo>,
+    mut client_setup_info: ResMut<crate::ClientConfigInfo>,
     mut game_state: ResMut<NextState<GameState>>,
     mut multiplayer_state: ResMut<NextState<MultiplayerState>>,
     mut menu_state: ResMut<NextState<MenuState>>,
 ) {
     for event in events.read() {
-        // client_setup_info.address = event.value.clone();
+        client_setup_info.address = event.value.clone();
 
-        // if Ipv4Addr::from_str(&client_setup_info.address).is_ok() {
-        //     game_state.set(GameState::Game);
-        //     menu_state.set(MenuState::Disabled);
-        //     multiplayer_state.set(MultiplayerState::Client)
-        // }
+        if Ipv4Addr::from_str(&client_setup_info.address).is_ok() {
+            game_state.set(GameState::Game);
+            menu_state.set(MenuState::Disabled);
+            multiplayer_state.set(MultiplayerState::Client)
+        }
     }
 }
