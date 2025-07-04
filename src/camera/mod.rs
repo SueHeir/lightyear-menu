@@ -1,8 +1,7 @@
 use bevy::{core_pipeline::{bloom::Bloom, tonemapping::Tonemapping}, prelude::*, window::WindowResized};
-// use iyes_perf_ui::prelude::{PerfUiEntryFPS, PerfUiRoot, PerfUiWidgetBar};
-use lightyear::{prelude::client::Predicted, shared::replication::components::Controlled};
 
-use crate::{networking::protocol::Player, GameState};
+use crate::GameState;
+// use iyes_perf_ui::prelude::{PerfUiEntryFPS, PerfUiRoot, PerfUiWidgetBar};
 
 
 /// In-game resolution width.
@@ -19,10 +18,12 @@ pub(crate) struct CameraPlugin;
 
 impl Plugin for CameraPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, setup_camera).add_systems(
-            Update,
-            camera_follow_player.run_if(in_state(GameState::Game)),
-        ).add_systems(Update, fit_canvas);
+        app.add_systems(Startup, setup_camera);
+        // .add_systems(
+        //     Update,
+        //     camera_follow_player.run_if(in_state(GameState::Game)),
+        // )
+        // .add_systems(Update, fit_canvas);
     }
 }
 
@@ -50,34 +51,34 @@ fn setup_camera(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
 }
 
 
-/// Scales camera projection to fit the window (integer multiples only).
-fn fit_canvas(
-    mut resize_events: EventReader<WindowResized>,
-    mut projection: Single<&mut OrthographicProjection, With<OuterCamera>>,
-) {
-    for event in resize_events.read() {
-        let h_scale = event.width / RES_WIDTH as f32;
-        let v_scale = event.height / RES_HEIGHT as f32;
-        projection.scale = 0.3;
-    }
-}
+// /// Scales camera projection to fit the window (integer multiples only).
+// fn fit_canvas(
+//     mut resize_events: EventReader<WindowResized>,
+//     mut projection: Single<&mut OrthographicProjection, With<OuterCamera>>,
+// ) {
+//     for event in resize_events.read() {
+//         let h_scale = event.width / RES_WIDTH as f32;
+//         let v_scale = event.height / RES_HEIGHT as f32;
+//         projection.scale = 0.3;
+//     }
+// }
 
-fn camera_follow_player(
-    // local_players: Res<LocalPlayers>,
-    players: Query<(&Player, &Transform, Has<Controlled>), With<Predicted>>,
-    mut cameras: Query<
-        (&mut Transform, &OrthographicProjection),
-        (With<OuterCamera>, Without<Player>),
-    >,
-) {
-    for (_player, player_transform, controlled) in players.iter() {
-        if controlled {
-            let pos = player_transform.translation;
+// fn camera_follow_player(
+//     // local_players: Res<LocalPlayers>,
+//     players: Query<(&Player, &Transform, Has<Controlled>), With<Predicted>>,
+//     mut cameras: Query<
+//         (&mut Transform, &OrthographicProjection),
+//         (With<OuterCamera>, Without<Player>),
+//     >,
+// ) {
+//     for (_player, player_transform, controlled) in players.iter() {
+//         if controlled {
+//             let pos = player_transform.translation;
 
-            for (mut transform, projection) in &mut cameras {
-                transform.translation.x = pos.x;
-                transform.translation.y = pos.y;
-            }
-        }
-    }
-}
+//             for (mut transform, projection) in &mut cameras {
+//                 transform.translation.x = pos.x;
+//                 transform.translation.y = pos.y;
+//             }
+//         }
+//     }
+// }

@@ -7,7 +7,9 @@ use bevy_simple_text_input::{
 };
 use steamworks::{FriendFlags, SteamId};
 
-use crate::{networking::SteamworksResource, GameCleanUp, MultiplayerState};
+// use crate::{networking::SteamworksResource, GameCleanUp, MultiplayerState};
+
+use crate::MultiplayerState;
 
 use super::{despawn_screen, GameState, TEXT_COLOR};
 
@@ -79,13 +81,11 @@ struct SelectedOption;
 // All actions that can be triggered from a button click
 #[derive(Component)]
 enum MenuButtonAction {
-    HostServerAndJoin,
     SeperateAndJoin,
     JoinServerScreen,
     MainMenu,
     JoinSteamFriend(SteamId),
     JoinServer,
-    HostServer,
     Quit,
 }
 
@@ -173,10 +173,6 @@ fn main_menu_setup(mut commands: Commands) {
                         },
                     ));
 
-                    // Display three buttons for each action available from the main menu:
-                    // - new game
-                    // - settings
-                    // - quit
                     parent
                         .spawn((
                             Button,
@@ -186,26 +182,12 @@ fn main_menu_setup(mut commands: Commands) {
                         ))
                         .with_children(|parent| {
                             parent.spawn((
-                                Text::new("Play Seperate"),
+                                Text::new("Play"),
                                 button_text_font.clone(),
                                 TextColor(TEXT_COLOR),
                             ));
                         });
 
-                    parent
-                        .spawn((
-                            Button,
-                            button_node.clone(),
-                            BackgroundColor(NORMAL_BUTTON),
-                            MenuButtonAction::HostServerAndJoin,
-                        ))
-                        .with_children(|parent| {
-                            parent.spawn((
-                                Text::new("Play Host"),
-                                button_text_font.clone(),
-                                TextColor(TEXT_COLOR),
-                            ));
-                        });
 
                     parent
                         .spawn((
@@ -222,36 +204,6 @@ fn main_menu_setup(mut commands: Commands) {
                             ));
                         });
                         
-                    parent
-                        .spawn((
-                            Button,
-                            button_node.clone(),
-                            BackgroundColor(NORMAL_BUTTON),
-                            MenuButtonAction::HostServer,
-                        ))
-                        .with_children(|parent| {
-                            parent.spawn((
-                                Text::new("Just Server"),
-                                button_text_font.clone(),
-                                TextColor(TEXT_COLOR),
-                            ));
-                        });
-                    
-
-                    // parent
-                    //     .spawn((
-                    //         Button,
-                    //         button_node.clone(),
-                    //         BackgroundColor(NORMAL_BUTTON),
-                    //         MenuButtonAction::HostSeperateServerAndJoin,
-                    //     ))
-                    //     .with_children(|parent| {
-                    //         parent.spawn((
-                    //             Text::new("Host Seperate Server and Join"),
-                    //             button_text_font.clone(),
-                    //             TextColor(TEXT_COLOR),
-                    //         ));
-                    //     });
 
                     parent
                         .spawn((
@@ -280,13 +232,13 @@ fn menu_action(
     mut menu_state: ResMut<NextState<MenuState>>,
     mut game_state: ResMut<NextState<GameState>>,
     mut multiplayer_state: ResMut<NextState<MultiplayerState>>,
-    mut client_setup_info: ResMut<crate::ClientConfigInfo>,
+    // mut client_setup_info: ResMut<crate::ClientConfigInfo>,
 ) {
     for (interaction, menu_button_action) in &interaction_query {
         if *interaction == Interaction::Pressed {
             match menu_button_action {
                 MenuButtonAction::Quit => {
-                    app_exit_events.send(AppExit::Success);
+                    app_exit_events.write(AppExit::Success);
                 }
                 MenuButtonAction::JoinServerScreen => {
                     menu_state.set(MenuState::JoinServer);
@@ -294,67 +246,58 @@ fn menu_action(
                 MenuButtonAction::MainMenu => {
                     menu_state.set(MenuState::Main);
                 }
-                MenuButtonAction::HostServerAndJoin => {
-                    game_state.set(GameState::Game);
-                    menu_state.set(MenuState::Disabled);
-                    multiplayer_state.set(MultiplayerState::HostServer)
-                }
                 MenuButtonAction::JoinSteamFriend(id) => {
-                    client_setup_info.steam_testing = true;
-                    client_setup_info.steam_connect_to = Some(*id);
+                    // client_setup_info.steam_testing = true;
+                    // client_setup_info.steam_connect_to = Some(*id);
 
                     game_state.set(GameState::Game);
                     menu_state.set(MenuState::Disabled);
                     multiplayer_state.set(MultiplayerState::Client)
                 }
                 MenuButtonAction::JoinServer => {
-                    if Ipv4Addr::from_str(&client_setup_info.address).is_ok() {
+                    // if Ipv4Addr::from_str(&client_setup_info.address).is_ok() {
                         // client_setup_info.address = text_input_value.single().0.clone();
                         game_state.set(GameState::Game);
                         menu_state.set(MenuState::Disabled);
                         multiplayer_state.set(MultiplayerState::Client)
-                    }
-                }
-                MenuButtonAction::HostServer => {
-                    game_state.set(GameState::Game);
-                    menu_state.set(MenuState::Disabled);
-                    multiplayer_state.set(MultiplayerState::Server)
+                    // }
                 }
                 MenuButtonAction::SeperateAndJoin => {
                     game_state.set(GameState::Game);
                     menu_state.set(MenuState::Disabled);
-                    multiplayer_state.set(MultiplayerState::ClientSpawnServer);
+                    //TODO multiplayer_state.set(MultiplayerState::ClientSpawnServer);
+                    multiplayer_state.set(MultiplayerState::Client);
                 },
             }
         }
     }
 }
 
-fn join_server_menu_setup(mut commands: Commands, mut steamworks: ResMut<SteamworksResource>) {
-    let mut steam_friends = Vec::new();
+fn join_server_menu_setup(mut commands: Commands ) {//mut steamworks: ResMut<SteamworksResource>
+    // let mut steam_friends = Vec::new();
 
-    for friend in steamworks
-        .steamworks
-        .read()
-        .get_client()
-        .friends()
-        .get_friends(FriendFlags::all())
-    {
-        if let Some(game_info) = friend.game_played() {
-            if game_info.game.app_id().0 == 480 {
-                steam_friends.push((friend.name(), friend.id()));
-                println!(
-                    "{:?} {:?} {:?} {:?} {:?} {:?}",
-                    friend.name(),
-                    friend.id(),
-                    game_info.game_address,
-                    game_info.game_port,
-                    game_info.query_port,
-                    game_info.lobby
-                )
-            }
-        }
-    }
+    // for friend in steamworks
+    //     .steamworks
+    //     .read()
+    //     .get_client()
+    //     .friends()
+    //     .get_friends(FriendFlags::all())
+    // {
+    //     if let Some(game_info) = friend.game_played() {
+    //         if game_info.game.app_id().0 == 480 {
+    //             steam_friends.push((friend.name(), friend.id()));
+    //             println!(
+    //                 "{:?} {:?} {:?} {:?} {:?} {:?}",
+    //                 friend.name(),
+    //                 friend.id(),
+    //                 game_info.game_address,
+    //                 game_info.game_port,
+    //                 game_info.query_port,
+    //                 game_info.lobby
+    //             )
+    //         }
+    //     }
+    // }
 
     // Common style for all buttons on the screen
     let button_node = Node {
@@ -401,22 +344,22 @@ fn join_server_menu_setup(mut commands: Commands, mut steamworks: ResMut<Steamwo
                     })),
                 ))
                 .with_children(|parent| {
-                    for (friend, id) in steam_friends {
-                        parent
-                            .spawn((
-                                Button,
-                                button_node.clone(),
-                                BackgroundColor(NORMAL_BUTTON),
-                                MenuButtonAction::JoinSteamFriend(id),
-                            ))
-                            .with_children(|parent| {
-                                parent.spawn((
-                                    Text::new(friend),
-                                    button_text_font.clone(),
-                                    TextColor(TEXT_COLOR),
-                                ));
-                            });
-                    }
+                    // for (friend, id) in steam_friends {
+                    //     parent
+                    //         .spawn((
+                    //             Button,
+                    //             button_node.clone(),
+                    //             BackgroundColor(NORMAL_BUTTON),
+                    //             MenuButtonAction::JoinSteamFriend(id),
+                    //         ))
+                    //         .with_children(|parent| {
+                    //             parent.spawn((
+                    //                 Text::new(friend),
+                    //                 button_text_font.clone(),
+                    //                 TextColor(TEXT_COLOR),
+                    //             ));
+                    //         });
+                    // }
 
                     parent.spawn((
                         Node {
@@ -471,18 +414,18 @@ fn join_server_menu_setup(mut commands: Commands, mut steamworks: ResMut<Steamwo
 
 fn listener(
     mut events: EventReader<TextInputSubmitEvent>,
-    mut client_setup_info: ResMut<crate::ClientConfigInfo>,
+    // mut client_setup_info: ResMut<crate::ClientConfigInfo>,
     mut game_state: ResMut<NextState<GameState>>,
     mut multiplayer_state: ResMut<NextState<MultiplayerState>>,
     mut menu_state: ResMut<NextState<MenuState>>,
 ) {
     for event in events.read() {
-        client_setup_info.address = event.value.clone();
+        // client_setup_info.address = event.value.clone();
 
-        if Ipv4Addr::from_str(&client_setup_info.address).is_ok() {
-            game_state.set(GameState::Game);
-            menu_state.set(MenuState::Disabled);
-            multiplayer_state.set(MultiplayerState::Client)
-        }
+        // if Ipv4Addr::from_str(&client_setup_info.address).is_ok() {
+        //     game_state.set(GameState::Game);
+        //     menu_state.set(MenuState::Disabled);
+        //     multiplayer_state.set(MultiplayerState::Client)
+        // }
     }
 }
