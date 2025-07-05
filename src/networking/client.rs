@@ -131,7 +131,19 @@ fn client_connect(
     let client = client_q.single_inner().ok().unwrap();
 
     if client_config.seperate_mode {
-        commands.entity(client).try_remove::<UdpIo>().insert(client_startup.client_crossbeam.clone().unwrap());
+
+        let auth = Authentication::Manual {
+            server_addr: SERVER_ADDR,
+            client_id: 0,
+            private_key: Key::default(),
+            protocol_id: 0,
+        };
+       
+
+        commands.entity(client).try_remove::<UdpIo>().insert((client_startup.client_crossbeam.clone().unwrap(), NetcodeClient::new(auth, NetcodeConfig::default())?));
+
+
+
         info!("Using CrossbeamIo for client connection");
         return Ok(());
     }
@@ -148,8 +160,16 @@ fn client_connect(
         return Ok(());
     } 
 
+
+    let auth = Authentication::Manual {
+        server_addr: SERVER_ADDR,
+        client_id: rand::random::<u64>(),
+        private_key: Key::default(),
+        protocol_id: 0,
+    };
+
     // Connect to the server using standard udp
-    commands.entity(client).try_remove::<CrossbeamIo>().insert(UdpIo::default());
+    commands.entity(client).try_remove::<CrossbeamIo>().insert((UdpIo::default(), NetcodeClient::new(auth, NetcodeConfig::default())?));
 
     commands.trigger_targets(Connect, client);
 
