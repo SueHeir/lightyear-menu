@@ -257,12 +257,16 @@ fn menu_action(
                 MenuButtonAction::JoinServer => {
                     if Ipv4Addr::from_str(&client_setup_info.address).is_ok() {
                         // client_setup_info.address = text_input_value.single().0.clone();
+                        client_setup_info.seperate_mode = false;
+                        client_setup_info.steam_connect_to = None;
                         game_state.set(GameState::Game);
                         menu_state.set(MenuState::Disabled);
                         multiplayer_state.set(MultiplayerState::Client)
                     }
                 }
                 MenuButtonAction::SeperateAndJoin => {
+                    client_setup_info.seperate_mode = true;
+                    client_setup_info.steam_connect_to = None;
                     game_state.set(GameState::Game);
                     menu_state.set(MenuState::Disabled);
                     multiplayer_state.set(MultiplayerState::ClientSpawnServer);
@@ -423,6 +427,8 @@ fn listener(
         client_setup_info.address = event.value.clone();
 
         if Ipv4Addr::from_str(&client_setup_info.address).is_ok() {
+            client_setup_info.seperate_mode = false;
+            client_setup_info.steam_connect_to = None;
             game_state.set(GameState::Game);
             menu_state.set(MenuState::Disabled);
             multiplayer_state.set(MultiplayerState::Client)

@@ -1,6 +1,7 @@
 //! This module contains the shared code between the client and the server.
 
 use bevy::prelude::*;
+use crossbeam_channel::{Receiver, TryRecvError};
 use core::net::{IpAddr, Ipv4Addr, SocketAddr};
 use core::time::Duration;
 use lightyear::prelude::*;
@@ -30,5 +31,47 @@ impl Plugin for SharedPlugin {
             mode: ChannelMode::OrderedReliable(ReliableSettings::default()),
             ..default()
         });
+    }
+}
+
+
+
+
+
+
+
+#[derive(Resource)]
+struct CrossbeamEventReceiver<T: Event>(Receiver<T>);
+
+pub trait CrossbeamEventApp {
+    fn add_crossbeam_event<T: Event>(&mut self, receiver: Receiver<T>) -> &mut Self;
+}
+
+impl CrossbeamEventApp for App {
+    fn add_crossbeam_event<T: Event>(&mut self, receiver: Receiver<T>) -> &mut Self {
+        self.insert_resource(CrossbeamEventReceiver::<T>(receiver));
+        self.add_event::<T>();
+        self.add_systems(PreUpdate, process_crossbeam_messages::<T>);
+        self
+    }
+}
+
+
+fn process_crossbeam_messages<T: Event>(
+    receiver: Res<CrossbeamEventReceiver<T>>,
+    mut events: EventWriter<T>,
+) {
+    loop {
+        match receiver.0.try_recv() {
+            Ok(msg) => {
+                events.write(msg);
+            }
+            Err(TryRecvError::Disconnected) => {
+                panic!("sender resource dropped")
+            }
+            Err(TryRecvError::Empty) => {
+                break;
+            }
+        }
     }
 }

@@ -39,7 +39,6 @@ pub enum MultiplayerState {
     None,
     Server,
     Client,
-    HostServer,
     ClientSpawnServer,
 }
 
@@ -154,20 +153,8 @@ fn main() {
         server_crossbeam: Some(crossbeam_server),
         client_recieve_commands:  Some(client_commands_receive),
         server_send_commands:  Some(server_commands_send),
-        // predict_all: true, 
-        // : steam_client.clone(), 
-        // option_sender: Some(from_server_send), 
-        // option_reciever: Some(to_server_recv), 
-        // client_recieve_commands: Some(client_commands_receive.clone()),
-        // server_send_commands: server_commands_send.clone(),
     });
 
-
-   
-        // .add_systems(
-        //     OnEnter(GameState::Menu),
-        //     (despawn_screen::<GameCleanUp>),
-        // );
 
     let cli = Cli::parse();
 
@@ -175,11 +162,15 @@ fn main() {
         Mode::Full => { //Client here does spawn server in background
             let mut send_app = SendApp(app);
             std::thread::spawn(move || send_app.run());
-            info!("Spawned Server as background task");
+            info!("Spawned Server as background task (server is not started yet");
         },
         Mode::Client => {}, //Client here does not spawn server in background
         Mode::Server => {
-            info!("Started Server as main task");
+            info!("Started Server as main task (server is auto started)");
+            let game_state = GameState::Game;
+            app.insert_state(game_state);
+            let server_multiplayer_state = MultiplayerState::Server;
+            app.insert_state(server_multiplayer_state);
             app.run();
             return;
         },
@@ -213,7 +204,10 @@ fn main() {
         // .insert_resource(Gravity(Vec2::ZERO))
         // .add_plugins(PhysicsDebugPlugin::default())
         //Lightyear Setup
-        .add_plugins(NetworkingPlugin {})
+        .add_plugins(NetworkingPlugin { client_crossbeam: Some(crossbeam_client), 
+            client_sender_commands: Some(client_commands_send.clone()),
+            server_receive_commands: Some(server_commands_receive.clone()),
+        })
         .insert_resource(client_config)
         //Menu Setup
         .init_state::<GameState>()

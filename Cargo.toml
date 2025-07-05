@@ -18,7 +18,7 @@ bevy = "0.16"
 serde = "*"
 rand = "*"
 tracing = "*"
-lightyear = {version = "0.21.0" ,features = ["udp", "crossbeam", "netcode", "leafwing", "avian2d", "crossbeam"] } #cBournhonesque  , "visualizer" "steam",
+lightyear = {git = "https://github.com/SueHeir/lightyear.git" ,features = ["udp", "crossbeam", "netcode", "leafwing", "avian2d"] } #cBournhonesque  , "visualizer" "steam",
 crossbeam-channel = { version = "0.5.13", features = [] }
 clap = { version = "4.5.4", features = ["derive"] }
 steamworks = "0.12"

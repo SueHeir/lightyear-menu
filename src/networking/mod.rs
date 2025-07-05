@@ -11,13 +11,15 @@ use lightyear::prelude::client::ClientPlugins;
 
 use shared::*;
 
+use crate::ClientCommands;
+use crate::ServerCommands;
+
 
 
 pub(crate) struct NetworkingPlugin {
-    // pub(crate) steam_client: Arc<parking_lot::lock_api::RwLock<parking_lot::RawRwLock, SteamworksClient>>,
-    // pub(crate) client_config: NetConfig,
-    // pub(crate) client_commands_send: Sender<ClientCommands>,
-    // pub(crate) server_commands_receive: Receiver<ServerCommands>,
+    pub client_crossbeam: Option<lightyear::crossbeam::CrossbeamIo>,
+    pub client_sender_commands: Option<crossbeam_channel::Sender<ClientCommands>>,
+    pub server_receive_commands: Option<crossbeam_channel::Receiver<ServerCommands>>,
 }
 
 impl Plugin for NetworkingPlugin {
@@ -29,7 +31,10 @@ impl Plugin for NetworkingPlugin {
 
         app.add_plugins(SharedPlugin);
         
-        app.add_plugins(ExampleClientPlugin);
+        app.add_plugins(ExampleClientPlugin { client_crossbeam: self.client_crossbeam.clone(), 
+            client_sender_commands: self.client_sender_commands.clone(),
+            server_receive_commands: self.server_receive_commands.clone(),
+        });
         
     }
 }

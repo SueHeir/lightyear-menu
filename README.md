@@ -2,8 +2,13 @@
 
 The menu code follows Bevy's menu example
 
-Pressing Play will start the server with Netcode and Steam.
 
-Pressing Join Server will display all friends currently playing your game (If you set up the app_id correctly, presently using 480 as the app id), and pressing their names will make you join their server.
+Working Part
+running with -- client only runs client code (so you have to join a server, you can't press play)
+running with -- server only runs server code in terminal, and auto starts server
 
-You can also connect via netcode by typing an address in the text box and pressing connect. If you are testing over different computers there is a flag in main.rs. Change local_testing to false.
+Not Working Part
+running with -- full starts a client and server, which communicate via crossbeam messages
+
+
+
