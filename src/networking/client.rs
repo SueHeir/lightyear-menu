@@ -5,6 +5,7 @@ use bevy::prelude::*;
 use lightyear::crossbeam::CrossbeamIo;
 use core::net::Ipv4Addr;
 use core::net::{IpAddr, SocketAddr};
+use std::time::Duration;
 use lightyear::netcode::Key;
 use lightyear::prelude::client::*;
 use lightyear::prelude::*;
@@ -48,9 +49,8 @@ impl Plugin for ExampleClientPlugin {
         app.add_systems(
             FixedUpdate,
             clean_up_game_on_client_disconnect.run_if(
-                    in_state(MultiplayerState::Client).or(
-                    in_state(MultiplayerState::ClientSpawnServer),
-                )
+                    in_state(MultiplayerState::Client),
+                
             ),
         );
 
@@ -140,9 +140,15 @@ fn client_connect(
         };
        
 
-        commands.entity(client).try_remove::<UdpIo>().insert((client_startup.client_crossbeam.clone().unwrap(), NetcodeClient::new(auth, NetcodeConfig::default())?));
+        commands.entity(client).try_remove::<UdpIo>().insert((
+            client_startup.client_crossbeam.clone().unwrap(), 
+            NetcodeClient::new(auth, NetcodeConfig::default())?,
+            PingManager::new(PingConfig {
+                ping_interval: Duration::default(),
+            }),
+        ));
 
-
+        commands.trigger_targets(Connect, client);
 
         info!("Using CrossbeamIo for client connection");
         return Ok(());
@@ -155,6 +161,7 @@ fn client_connect(
         //     .unwrap();
         // let steam_client = steam_client.read();
         // let _ = steam_client.connect_to(client_config.steam_connect_to.unwrap());
+        //  commands.trigger_targets(Connect, client);
         info!("Using Steam for client connection");
 
         return Ok(());
@@ -180,14 +187,20 @@ fn client_connect(
 
 pub fn clean_up_game_on_client_disconnect(
     client_q: Query<Entity, With<Disconnected>>,
+    client_startup: Res<ClientStartupResources>,
     mut game_state: ResMut<NextState<GameState>>,
     mut multiplayer_state: ResMut<NextState<MultiplayerState>>,
 ) {
-    if let Some(client) = client_q.single_inner().ok() {
+    if let Some(_client) = client_q.single_inner().ok() {
         // info!("Client disconnected, cleaning up game state");
         game_state.set(GameState::Menu);
         multiplayer_state.set(MultiplayerState::None);
         // // Despawn the client entity
         // commands.despawn(client);
+        if let Some(sender) = &client_startup.client_sender_commands {
+            let _result = sender.send(ClientCommands::StopServer);
+        } else {
+            error!("client_sender_commands is None, cannot send StopServer command");
+        }
     } 
 }
