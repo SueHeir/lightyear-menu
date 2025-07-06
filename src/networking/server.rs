@@ -8,6 +8,7 @@
 //! Lightyear will handle the replication of entities automatically if you add a `Replicate` component to them.
 use std::net::Ipv4Addr;
 use std::net::SocketAddr;
+use std::sync::Arc;
 use std::time::Duration;
 
 use crate::networking::shared::*;
@@ -22,6 +23,9 @@ use lightyear::link::LinkSender;
 use lightyear::prelude::server::*;
 use lightyear::prelude::steamworks::SingleClient;
 use lightyear::prelude::*;
+use parking_lot::lock_api::RwLock;
+use parking_lot::Mutex;
+use sync_cell::SyncCell;
 use crate::MultiplayerState;
 
 #[derive(Resource)]
@@ -34,11 +38,18 @@ pub struct ServerStartupResources{
     pub server_crossbeam: Option<CrossbeamIo>,
 }
 
+#[derive(Resource)]
+pub struct SteamSingleClient {
+    pub steam: Arc<Mutex<lightyear::prelude::steamworks::SingleClient>>,
+}
+
 
 pub struct ExampleServerPlugin {
     pub server_crossbeam: Option<CrossbeamIo>,
     pub client_recieve_commands:   Option<Receiver<ClientCommands>>,
     pub server_send_commands:  Option<Sender<ServerCommands>>,
+    pub steam: Option<lightyear::prelude::steamworks::Client>,
+    pub wrapped_single_client: Option<Arc<Mutex<lightyear::prelude::steamworks::SingleClient>>>,
 }
 
 impl Plugin for ExampleServerPlugin {
@@ -49,6 +60,10 @@ impl Plugin for ExampleServerPlugin {
             NetcodeServer::new(NetcodeConfig::default()),
             LocalAddr(SERVER_ADDR),
             ServerUdpIo::default(),
+            SteamServerIo {
+                target: ListenTarget::Peer { virtual_port: 4001 },
+                config: SessionConfig::default(),
+            }
         )).id();
 
          if let Some(server_crossbeam) = &self.server_crossbeam {
@@ -64,31 +79,38 @@ impl Plugin for ExampleServerPlugin {
             entity.insert(Link::new(None));
             entity.insert(Linked);
             entity.insert(server_crossbeam.clone());
-    //        LinkOf {
-    //             server: self.server_entity,
-    //         },
-    //         // Send pings every frame, so that the Acks are sent every frame
-    //         PingManager::new(PingConfig {
-    //             ping_interval: Duration::default(),
-    //         }),
-    //         // TODO: we want the ReplicationSender/Receiver to be added automatically when ClientOf is created, but with configs pre-specified by the server
-    //         ReplicationSender::default(),
-    //         ReplicationReceiver::default(),
-    //         // we will act like each client has a different port
-    //         Link::new(None),
-    //         PeerAddr(SocketAddr::new(
-    //             core::net::IpAddr::V4(Ipv4Addr::LOCALHOST),
-    //             client_id as u16,
-    //         )),
-    //         // For Crossbeam we need to mark the IO as Linked, as there is no ServerLink to do that for us
-    //         Linked,
-    //         crossbeam_server,
-    //         TestHelper::default(),
         } 
 
         app.insert_resource(ServerStartupResources {
             server_crossbeam: self.server_crossbeam.clone(),
         });
+
+        if self.steam.is_some() && self.wrapped_single_client.is_some() {
+
+            info!("Using Steamworks for server connection");
+
+            let steam = self.steam.clone().unwrap();
+            let wrapped_single_client = self.wrapped_single_client.clone().unwrap();
+            
+
+            app.insert_resource(SteamworksClient(steam.clone()));
+
+
+            let resource = SteamSingleClient {
+                steam: wrapped_single_client.clone(),
+            };
+            app.insert_resource(resource);
+            app.add_systems(
+                PreUpdate,
+                steam_callbacks
+                    .run_if(in_state(MultiplayerState::Server)));
+
+            // If the server is using Steamworks, we need to add the SteamServerIo component
+            app.world_mut().entity_mut(server_entity).insert(SteamServerIo {
+                target: ListenTarget::Peer { virtual_port: 4001 },
+                config: SessionConfig::default(),
+            });
+        }
 
 
         
@@ -108,6 +130,21 @@ impl Plugin for ExampleServerPlugin {
         app.add_systems(OnEnter(MultiplayerState::Server), start_server);
         app.add_observer(handle_new_client);
     }
+}
+
+
+
+fn steam_callbacks(
+    steam: ResMut<SteamSingleClient>,
+    server_q: Query<Entity, With<Started>>
+) {
+    if server_q.is_empty() {
+        // If the server is not started, we don't need to run the callbacks
+        return;
+    }
+    // This system is responsible for running the Steamworks callbacks
+    // It should be run every frame to ensure that the Steamworks API works correctly
+    steam.steam.lock().run_callbacks();
 }
 
 /// Whenever a new client connects to the server, a new entity will get spawned with

@@ -3,7 +3,7 @@ mod menu;
 mod networking;
 
 use std::{net::Ipv4Addr, str::FromStr, sync::{Arc, OnceLock}, time::Duration};
-
+use parking_lot::{Mutex};
 use avian2d::prelude::*;
 use bevy::{app::ScheduleRunnerPlugin, gizmos::cross, log::{tracing_subscriber::Layer, BoxedLayer, LogPlugin}, prelude::*, winit::WinitPlugin};
 use bevy_inspector_egui::{bevy_egui::EguiPlugin, quick::WorldInspectorPlugin};
@@ -11,13 +11,14 @@ use bevy_simple_text_input::TextInputPlugin;
 
 // use iyes_perf_ui::PerfUiPlugin;
 use camera::CameraPlugin;
-use lightyear::{prelude::{server::ServerPlugins, SteamId}, steam};
+use lightyear::{connection::prelude::server, prelude::{server::ServerPlugins, SteamId, SteamworksClient}, steam};
 use lightyear::crossbeam::CrossbeamIo;
 // use lightyear::{client::config::NetcodeConfig, prelude::{client::{Authentication, ClientTransport, IoConfig, NetConfig}, CompressionConfig, Key, SteamworksClient}, transport::LOCAL_SOCKET};
 // use menu::MenuPlugin;
 use networking::{server::ExampleServerPlugin, shared::SharedPlugin, NetworkingPlugin};
-use parking_lot::RwLock;
 use clap::{Parser, Subcommand, ValueEnum};
+use steamworks::SingleClient;
+use sync_cell::SyncCell;
 use tracing::Level;
 
 use crate::{menu::MenuPlugin, networking::shared::FIXED_TIMESTEP_HZ};
@@ -105,6 +106,15 @@ pub enum Mode {
     Server,
 }
 
+// #[derive(Resource)]
+// pub struct SteamSingleClient {
+//     pub steam: SyncCell<lightyear::prelude::steamworks::SingleClient>,
+// }
+
+
+
+
+
 
 fn main() {
     
@@ -127,37 +137,34 @@ fn main() {
     server_app.insert_state(server_multiplayer_state);
 
 
-    // let steam_client: Arc<parking_lot::lock_api::RwLock<parking_lot::RawRwLock, SteamworksClient>> = Arc::new(RwLock::new(SteamworksClient::new_with_app_id(480).unwrap()));
+    //  let steam_client: Arc<parking_lot::lock_api::RwLock<parking_lot::RawRwLock, SteamworksClient>> = Arc::new(RwLock::new(SteamworksClient::));
     let (steam_result) = lightyear::prelude::steamworks::Client::init_app(480);
 
+    // let (steam, single_client) = lightyear::prelude::steamworks::SingleClient::init_app(480);
+
+
+    let steam: Option<lightyear::prelude::steamworks::Client>;
+    let wrapped_single_client: Option<Arc<Mutex<lightyear::prelude::steamworks::SingleClient>>>;
       
-    let steam = match steam_result {
-        Err(e) => {
-            error!("Failed to initialize Steamworks client: {}", e);
-            None
-        }
-        Ok(steam_tuple) => {
-            steam_tuple.0.networking_utils().init_relay_network_access();
-            Some(steam_tuple)
-        }
-    };
+      
+    if steam_result.is_err() {
+        steam = None;
+        wrapped_single_client = None;
+    } else {
+        let steam_tuple = steam_result.unwrap();
+        steam = Some(steam_tuple.0);
+        wrapped_single_client = Some(Arc::new(Mutex::new(steam_tuple.1)));
+   
 
-    // Insert Steamworks client resource if available
-    if let Some((steamclient, steam_single)) = steam.as_ref() {
-            info!("Steamworks server initialized successfully");
-            server_app.insert_resource(lightyear::prelude::SteamworksClient(steamclient.clone()));
-                // .insert_non_send_resource(steam_single.clone())
-                // .add_systems(
-                //     PreUpdate,
-                //     |steam: NonSend<lightyear::prelude::steamworks::SingleClient>| {
-                //         steam.run_callbacks();
-                //     },
-            // );
-        } else {
-            error!("Failed to initialize Steamworks client, running without Steam support");
-        }
+        // server_app.insert_resource(SteamworksClient(steam.clone().unwrap()));
+        // server_app.insert_resource(resource);
+        // server_app.add_systems(
+        //     PreUpdate,
+        //     |steam: ResMut<SteamSingleClient>| {
+        //         steam.steam.borrow().run_callbacks();
+        //     },);
+    }
      
-
 
     server_app.add_plugins(ServerPlugins {
         tick_duration: Duration::from_secs_f64(1.0 / FIXED_TIMESTEP_HZ),
@@ -169,6 +176,8 @@ fn main() {
         server_crossbeam: Some(crossbeam_server),
         client_recieve_commands:  Some(client_commands_receive),
         server_send_commands:  Some(server_commands_send),
+        steam: steam.clone(),
+        wrapped_single_client: wrapped_single_client.clone(),
     });
 
 
@@ -231,21 +240,23 @@ fn main() {
         .add_plugins(NetworkingPlugin { client_crossbeam: Some(crossbeam_client), 
             client_sender_commands: Some(client_commands_send.clone()),
             server_receive_commands: Some(server_commands_receive.clone()),
+            steam: steam.clone(),
+            wrapped_single_client: wrapped_single_client.clone(),
         });
 
-        if let Some((steamclient, steam_single)) = steam {
-            info!("Steamworks client initialized successfully");
-            client_app.insert_resource(lightyear::prelude::SteamworksClient(steamclient.clone()))
-                .insert_non_send_resource(steam_single)
-                .add_systems(
-                    PreUpdate,
-                    |steam: NonSend<lightyear::prelude::steamworks::SingleClient>| {
-                        steam.run_callbacks();
-                    },
-            );
-        } else {
-            error!("Failed to initialize Steamworks client, running without Steam support");
-        }
+        // if let Some((steamclient, steam_single)) = steam {
+        //     info!("Steamworks client initialized successfully");
+        //     client_app.insert_resource(lightyear::prelude::SteamworksClient(steamclient.clone()))
+        //         .insert_non_send_resource(steam_single)
+        //         .add_systems(
+        //             PreUpdate,
+        //             |steam: NonSend<lightyear::prelude::steamworks::SingleClient>| {
+        //                 steam.run_callbacks();
+        //             },
+        //     );
+        // } else {
+        //     error!("Failed to initialize Steamworks client, running without Steam support");
+        // }
         client_app
         .insert_resource(client_config)
         //Menu Setup

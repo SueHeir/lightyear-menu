@@ -1,10 +1,13 @@
 //! The client plugin.
+use crate::networking::server::SteamSingleClient;
 use crate::networking::shared::*;
 use crate::{ClientCommands, ClientConfigInfo, GameState, MultiplayerState, ServerCommands};
 use bevy::prelude::*;
 use lightyear::crossbeam::CrossbeamIo;
+use parking_lot::Mutex;
 use core::net::Ipv4Addr;
 use core::net::{IpAddr, SocketAddr};
+use std::sync::Arc;
 use std::time::Duration;
 use lightyear::netcode::Key;
 use lightyear::prelude::client::*;
@@ -24,6 +27,8 @@ pub struct ExampleClientPlugin {
     pub client_crossbeam: Option<CrossbeamIo>,
     pub client_sender_commands: Option<crossbeam_channel::Sender<ClientCommands>>,
     pub server_receive_commands: Option<crossbeam_channel::Receiver<ServerCommands>>,
+    pub steam: Option<lightyear::prelude::steamworks::Client>,
+    pub wrapped_single_client: Option<Arc<Mutex<lightyear::prelude::steamworks::SingleClient>>>,
     
 }
 
@@ -39,9 +44,32 @@ impl Plugin for ExampleClientPlugin {
         });
 
         app.add_systems(Startup, spawn_client);
+        app.add_crossbeam_event(self.server_receive_commands.clone().unwrap());
+
+
 
         
-        app.add_crossbeam_event(self.server_receive_commands.clone().unwrap());
+
+        if self.steam.is_some() && self.wrapped_single_client.is_some() {
+
+            info!("Using Steamworks for server connection");
+
+            let steam = self.steam.clone().unwrap();
+            let wrapped_single_client = self.wrapped_single_client.clone().unwrap();
+            
+
+            app.insert_resource(SteamworksClient(steam.clone()));
+
+
+            let resource = SteamSingleClient {
+                steam: wrapped_single_client.clone(),
+            };
+            app.insert_resource(resource);
+            app.add_systems(
+                PreUpdate,
+                steam_callbacks);
+
+        }
         
         
 
@@ -58,6 +86,21 @@ impl Plugin for ExampleClientPlugin {
 
     }
 }
+
+fn steam_callbacks(
+    steam: ResMut<SteamSingleClient>,
+    client_config: Res<ClientConfigInfo>, 
+) {
+    // This system is responsible for running the Steamworks callbacks
+    // It should be run every frame to ensure that the Steamworks API works correctly
+    // if client_config.seperate_mode {
+    //     // If we are in seperate mode, we don't need to run the callbacks
+    //     return;
+    // }
+
+    steam.steam.lock().run_callbacks();
+}
+
 
 /// Spawn a client that connects to the server
 fn spawn_client(mut commands: Commands, mut client_startup: ResMut<ClientStartupResources>) -> Result {
@@ -164,7 +207,7 @@ fn client_connect(
         // let _ = steam_client.connect_to(client_config.steam_connect_to.unwrap());
         let auth = Authentication::Manual {
             server_addr: SERVER_ADDR,
-            client_id: 1,
+            client_id: rand::random::<u64>(),
             private_key: Key::default(),
             protocol_id: 0,
         };
