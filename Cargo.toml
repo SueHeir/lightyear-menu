@@ -14,7 +14,7 @@ opt-level = 1
 opt-level = 3
 
 [dependencies]
-bevy = "0.16"
+bevy = {version = "0.16"}
 serde = "*"
 rand = "*"
 tracing = "*"

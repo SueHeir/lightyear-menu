@@ -19,7 +19,7 @@ use bevy::prelude::*;
 use lightyear::crossbeam::CrossbeamIo;
 use crossbeam_channel::Sender;
 use crossbeam_channel::Receiver;
-use lightyear::link::LinkSender;
+use lightyear::link::Unlink;
 use lightyear::prelude::server::*;
 use lightyear::prelude::steamworks::SingleClient;
 use lightyear::prelude::*;
@@ -166,10 +166,26 @@ fn handle_new_client(trigger: Trigger<OnAdd, Connected>, mut commands: Commands)
 }
 
 
-pub fn start_server(mut commands: Commands, server_q: Query<Entity, With<Server>>) {
+pub fn start_server(mut commands: Commands, server_q: Query<Entity, With<Server>>, server_startup: Res<ServerStartupResources>) {
 
     if let Some(server) = server_q.iter().next() {
         commands.trigger_targets(Start, server);
+
+        if let Some(server_crossbeam) = &server_startup.server_crossbeam {
+            // You need to provide a valid client_id here. For demonstration, we'll use 12345.
+            info!("Add a Linked connection for host client to server");
+            
+            let mut entity = commands.spawn(LinkOf {
+                server: server,
+            });
+            entity.insert(PingManager::new(PingConfig {
+                ping_interval: Duration::default(),
+            }));
+            entity.insert(Link::new(None));
+            entity.insert(Linked);
+            entity.insert(server_crossbeam.clone());
+        } 
+
         info!("Server Started"); 
 
     } else {
@@ -193,7 +209,8 @@ pub(crate) fn handle_client_commands(
     mut commands: Commands,
     mut multiplayer_state: ResMut<NextState<MultiplayerState>>,
     mut game_state: ResMut<NextState<GameState>>,
-    mut server_q: Query<Entity, With<Server>>
+    mut server_q: Query<Entity, With<Server>>,
+
     ) {
 
     for c in  client_commands.read() {
@@ -207,7 +224,9 @@ pub(crate) fn handle_client_commands(
             ClientCommands::StopServer => {
                 info!("Server received StopServer command");
                  if let Some(server) = server_q.iter().next() {
+                    commands.trigger_targets(Unlink { reason: "Stopping Server".to_string()}, server);
                     commands.trigger_targets(Stop, server);
+                    
                     info!("Server Stopped");
                 }
                 multiplayer_state.set(MultiplayerState::None);

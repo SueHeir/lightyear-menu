@@ -58,36 +58,7 @@ impl Plugin for NetworkingPlugin {
 //     }
 // }
 
-// pub fn esc_to_disconnect(
-//     keys: Res<ButtonInput<KeyCode>>,
-//     mut commands: Commands,
-//     multiplayer_state: Res<State<MultiplayerState>>,
-//     client_commands: Res<ClientCommandsSender>,
-//     mut game_state: ResMut<NextState<GameState>>,
-// ) {
-//     if keys.just_pressed(KeyCode::Escape) {
-//         if MultiplayerState::Client == *multiplayer_state.get() {
-           
-//             commands.disconnect_client();
-//             let result =  client_commands.client_commands.send(ClientCommands::StopServer);
 
-//             info!("{:?}", result);
-            
-                          
-//         }
-
-//         if MultiplayerState::Server == *multiplayer_state.get() {
-//             commands.stop_server();
-//             game_state.set(GameState::Menu); //MultiplayerState is set to None OnEnter(Menu) in menu.rs
-//         }
-
-//         if MultiplayerState::HostServer == *multiplayer_state.get() {
-//             commands.stop_server();
-
-//             game_state.set(GameState::Menu); //MultiplayerState is set to None OnEnter(Menu) in menu.rs
-//         }
-//     }
-// }
 
 
 

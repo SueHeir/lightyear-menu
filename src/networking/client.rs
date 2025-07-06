@@ -83,6 +83,13 @@ impl Plugin for ExampleClientPlugin {
                 
             ),
         );
+        app.add_systems(Update, esc_to_disconnect.run_if(
+            in_state(MultiplayerState::Client),
+        ));
+        app.add_systems(
+            PreUpdate,
+            client_stop_server
+        );
 
     }
 }
@@ -99,6 +106,24 @@ fn steam_callbacks(
     // }
 
     steam.steam.lock().run_callbacks();
+}
+
+pub fn esc_to_disconnect(
+    keys: Res<ButtonInput<KeyCode>>,
+    multiplayer_state: Res<State<MultiplayerState>>,
+    mut client_startup: ResMut<ClientStartupResources>,
+    mut game_state: ResMut<NextState<GameState>>,
+    client_q: Query<Entity, With<Client>>,
+    client_config: Res<ClientConfigInfo>, 
+    mut commands: Commands,
+) {
+    if let Ok(client) = client_q.single_inner() {
+        if keys.just_pressed(KeyCode::Escape) {
+            if MultiplayerState::Client == *multiplayer_state.get() {
+                commands.trigger_targets(Disconnect, client);
+            }
+        }
+    }
 }
 
 
@@ -142,6 +167,26 @@ fn client_start_server(mut client_startup: ResMut<ClientStartupResources>) {
     } else {
         error!("client_sender_commands is None, cannot send StartServer command");
     }
+
+}
+
+
+fn client_stop_server(client_config: Res<ClientConfigInfo>, mut client_startup: ResMut<ClientStartupResources>,  client_q: Query<(Entity, &Client), Added<Disconnected>>,) {
+    if !client_config.seperate_mode {
+        // If we are in seperate mode, we don't need to stop the server
+        return;
+    }
+
+    if let Some(client) = client_q.single_inner().ok() {
+        info!("Client disconnected, cleaning up game state");
+         if let Some(sender) = &client_startup.client_sender_commands {
+            // let _result = sender.send(ClientCommands::StopServer);
+        } else {
+            error!("client_sender_commands is None, cannot send StartServer command");
+        }
+    } 
+    // We need to send a command to the server to start the server
+   
 
 }
 
