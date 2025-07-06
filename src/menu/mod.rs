@@ -5,7 +5,7 @@ use bevy_simple_text_input::{
     TextInput, TextInputSubmitEvent, TextInputSystem, TextInputTextColor, TextInputTextFont,
     TextInputValue,
 };
-use steamworks::{FriendFlags, SteamId};
+use lightyear::prelude::{steamworks::FriendFlags, SteamId, SteamworksClient};
 
 // use crate::{networking::SteamworksResource, GameCleanUp, MultiplayerState};
 
@@ -277,31 +277,27 @@ fn menu_action(
     }
 }
 
-fn join_server_menu_setup(mut commands: Commands ) {//mut steamworks: ResMut<SteamworksResource>
-    // let mut steam_friends = Vec::new();
+fn join_server_menu_setup(mut commands: Commands, mut steamworks: ResMut<SteamworksClient> ) {//mut steamworks: ResMut<SteamworksResource>
+    let mut steam_friends = Vec::new();
 
-    // for friend in steamworks
-    //     .steamworks
-    //     .read()
-    //     .get_client()
-    //     .friends()
-    //     .get_friends(FriendFlags::all())
-    // {
-    //     if let Some(game_info) = friend.game_played() {
-    //         if game_info.game.app_id().0 == 480 {
-    //             steam_friends.push((friend.name(), friend.id()));
-    //             println!(
-    //                 "{:?} {:?} {:?} {:?} {:?} {:?}",
-    //                 friend.name(),
-    //                 friend.id(),
-    //                 game_info.game_address,
-    //                 game_info.game_port,
-    //                 game_info.query_port,
-    //                 game_info.lobby
-    //             )
-    //         }
-    //     }
-    // }
+    for friend in steamworks
+        .0.friends().get_friends(FriendFlags::all()).iter()
+    {
+        if let Some(game_info) = friend.game_played() {
+            if game_info.game.app_id().0 == 480 {
+                steam_friends.push((friend.name(), friend.id()));
+                println!(
+                    "{:?} {:?} {:?} {:?} {:?} {:?}",
+                    friend.name(),
+                    friend.id(),
+                    game_info.game_address,
+                    game_info.game_port,
+                    game_info.query_port,
+                    game_info.lobby
+                )
+            }
+        }
+    }
 
     // Common style for all buttons on the screen
     let button_node = Node {
@@ -348,22 +344,22 @@ fn join_server_menu_setup(mut commands: Commands ) {//mut steamworks: ResMut<Ste
                     })),
                 ))
                 .with_children(|parent| {
-                    // for (friend, id) in steam_friends {
-                    //     parent
-                    //         .spawn((
-                    //             Button,
-                    //             button_node.clone(),
-                    //             BackgroundColor(NORMAL_BUTTON),
-                    //             MenuButtonAction::JoinSteamFriend(id),
-                    //         ))
-                    //         .with_children(|parent| {
-                    //             parent.spawn((
-                    //                 Text::new(friend),
-                    //                 button_text_font.clone(),
-                    //                 TextColor(TEXT_COLOR),
-                    //             ));
-                    //         });
-                    // }
+                    for (friend, id) in steam_friends {
+                        parent
+                            .spawn((
+                                Button,
+                                button_node.clone(),
+                                BackgroundColor(NORMAL_BUTTON),
+                                MenuButtonAction::JoinSteamFriend(id),
+                            ))
+                            .with_children(|parent| {
+                                parent.spawn((
+                                    Text::new(friend),
+                                    button_text_font.clone(),
+                                    TextColor(TEXT_COLOR),
+                                ));
+                            });
+                    }
 
                     parent.spawn((
                         Node {

@@ -18,7 +18,9 @@ use bevy::prelude::*;
 use lightyear::crossbeam::CrossbeamIo;
 use crossbeam_channel::Sender;
 use crossbeam_channel::Receiver;
+use lightyear::link::LinkSender;
 use lightyear::prelude::server::*;
+use lightyear::prelude::steamworks::SingleClient;
 use lightyear::prelude::*;
 use crate::MultiplayerState;
 
@@ -49,27 +51,47 @@ impl Plugin for ExampleServerPlugin {
             ServerUdpIo::default(),
         )).id();
 
-
-        // Add a Linked connection for host client to server 
-        if let Some(server_crossbeam) = &self.server_crossbeam {
+         if let Some(server_crossbeam) = &self.server_crossbeam {
             // You need to provide a valid client_id here. For demonstration, we'll use 12345.
-            let client_id: u16 = 0; //Host client_id is always 0
+            info!("Add a Linked connection for host client to server");
+            
             let mut entity = app.world_mut().spawn(LinkOf {
                 server: server_entity,
             });
             entity.insert(PingManager::new(PingConfig {
                 ping_interval: Duration::default(),
             }));
-            entity.insert(ReplicationSender::default());
-            entity.insert(ReplicationReceiver::default());
             entity.insert(Link::new(None));
-            entity.insert(PeerAddr(SocketAddr::new(
-                core::net::IpAddr::V4(Ipv4Addr::LOCALHOST),
-                client_id,
-            )));
             entity.insert(Linked);
             entity.insert(server_crossbeam.clone());
+    //        LinkOf {
+    //             server: self.server_entity,
+    //         },
+    //         // Send pings every frame, so that the Acks are sent every frame
+    //         PingManager::new(PingConfig {
+    //             ping_interval: Duration::default(),
+    //         }),
+    //         // TODO: we want the ReplicationSender/Receiver to be added automatically when ClientOf is created, but with configs pre-specified by the server
+    //         ReplicationSender::default(),
+    //         ReplicationReceiver::default(),
+    //         // we will act like each client has a different port
+    //         Link::new(None),
+    //         PeerAddr(SocketAddr::new(
+    //             core::net::IpAddr::V4(Ipv4Addr::LOCALHOST),
+    //             client_id as u16,
+    //         )),
+    //         // For Crossbeam we need to mark the IO as Linked, as there is no ServerLink to do that for us
+    //         Linked,
+    //         crossbeam_server,
+    //         TestHelper::default(),
         } 
+
+        app.insert_resource(ServerStartupResources {
+            server_crossbeam: self.server_crossbeam.clone(),
+        });
+
+
+        
 
 
 
@@ -83,7 +105,7 @@ impl Plugin for ExampleServerPlugin {
         }
        
         // app.add_systems(OnEnter(GameState::Game), init.run_if(in_state(MultiplayerState::Server).or(in_state(MultiplayerState::HostServer))));
-        app.add_systems(OnEnter(MultiplayerState::Server), start_server.run_if(in_state(MultiplayerState::Server)));
+        app.add_systems(OnEnter(MultiplayerState::Server), start_server);
         app.add_observer(handle_new_client);
     }
 }
@@ -111,7 +133,8 @@ pub fn start_server(mut commands: Commands, server_q: Query<Entity, With<Server>
 
     if let Some(server) = server_q.iter().next() {
         commands.trigger_targets(Start, server);
-        info!("Server Started")
+        info!("Server Started"); 
+
     } else {
         error!("No server entity found to set up");
         return;

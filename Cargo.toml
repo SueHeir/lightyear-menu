@@ -18,13 +18,14 @@ bevy = "0.16"
 serde = "*"
 rand = "*"
 tracing = "*"
-lightyear = {git = "https://github.com/SueHeir/lightyear.git" ,features = ["udp", "crossbeam", "netcode", "leafwing", "avian2d"] } #cBournhonesque  , "visualizer" "steam",
+tracing-appender = "*"
+lightyear = {git = "https://github.com/SueHeir/lightyear.git" ,features = ["udp", "crossbeam", "netcode", "leafwing", "avian2d", "steam"] } #cBournhonesque  , "visualizer" 
 crossbeam-channel = { version = "0.5.13", features = [] }
 clap = { version = "4.5.4", features = ["derive"] }
-steamworks = "0.12"
 parking_lot = "*"
 avian2d = {version = "0.3", features = [  "2d","f32","parry-f32","parallel","serialize"]}
 leafwing-input-manager = "0.17"
 bevy-inspector-egui = "0.31"
 bevy_simple_text_input = "0.11"
+lightyear_core = "0.21.1"
 

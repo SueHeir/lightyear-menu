@@ -2,22 +2,23 @@ mod camera;
 mod menu;
 mod networking;
 
-use std::{net::Ipv4Addr, str::FromStr, sync::Arc, time::Duration};
+use std::{net::Ipv4Addr, str::FromStr, sync::{Arc, OnceLock}, time::Duration};
 
 use avian2d::prelude::*;
-use bevy::{app::ScheduleRunnerPlugin, prelude::*, winit::WinitPlugin};
+use bevy::{app::ScheduleRunnerPlugin, gizmos::cross, log::{tracing_subscriber::Layer, BoxedLayer, LogPlugin}, prelude::*, winit::WinitPlugin};
+use bevy_inspector_egui::{bevy_egui::EguiPlugin, quick::WorldInspectorPlugin};
 use bevy_simple_text_input::TextInputPlugin;
 
 // use iyes_perf_ui::PerfUiPlugin;
 use camera::CameraPlugin;
-use lightyear::prelude::server::ServerPlugins;
+use lightyear::{prelude::{server::ServerPlugins, SteamId}, steam};
 use lightyear::crossbeam::CrossbeamIo;
 // use lightyear::{client::config::NetcodeConfig, prelude::{client::{Authentication, ClientTransport, IoConfig, NetConfig}, CompressionConfig, Key, SteamworksClient}, transport::LOCAL_SOCKET};
 // use menu::MenuPlugin;
 use networking::{server::ExampleServerPlugin, shared::SharedPlugin, NetworkingPlugin};
 use parking_lot::RwLock;
-use steamworks::SteamId;
 use clap::{Parser, Subcommand, ValueEnum};
+use tracing::Level;
 
 use crate::{menu::MenuPlugin, networking::shared::FIXED_TIMESTEP_HZ};
 
@@ -69,7 +70,21 @@ pub enum ServerCommands {
 
 
 
+use tracing_appender::{non_blocking::WorkerGuard, rolling};
 
+
+static LOG_GUARD: OnceLock<WorkerGuard> = OnceLock::new();
+
+fn custom_layer(_app: &mut App) -> Option<BoxedLayer> {
+    let file_appender = rolling::daily("logs", "app.log");
+    let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
+    let _ = LOG_GUARD.set(guard);
+    Some(bevy::log::tracing_subscriber::fmt::layer()
+            .with_writer(non_blocking)
+            .with_file(true)
+            .with_line_number(true)
+            .boxed())
+}
 
 
 
@@ -93,63 +108,64 @@ pub enum Mode {
 
 fn main() {
     
-    // we will communicate between the client and server apps via channels
-    // let (from_server_send, from_server_recv) = crossbeam_channel::unbounded();
-    // let (to_server_send, to_server_recv) = crossbeam_channel::unbounded();
-    // let (client_commands_send, client_commands_receive) = crossbeam_channel::unbounded::<ClientCommands>();
-    // let (server_commands_send, server_commands_receive) = crossbeam_channel::unbounded::<ServerCommands>();
-
+    
     let (crossbeam_client, crossbeam_server) = CrossbeamIo::new_pair();
+
     let (client_commands_send, client_commands_receive) = crossbeam_channel::unbounded::<ClientCommands>();
     let (server_commands_send, server_commands_receive) = crossbeam_channel::unbounded::<ServerCommands>();
 
 
-    // // create client app
-    // let io = IoConfig {
-    //     // the address specified here is the client_address, because we open a UDP socket on the client
-    //     transport: ClientTransport::LocalChannel { recv: from_server_recv, send: to_server_send },
-    //     conditioner: None,
-    //     compression: CompressionConfig::None,
-    //  };
 
-    //  // Authentication is where you specify how the client should connect to the server
-    //  // This is where you provide the server address.
-    //  let auth = Authentication::Manual {
-    //      server_addr: LOCAL_SOCKET,
-    //      client_id: 0,
-    //      private_key: Key::default(),
-    //      protocol_id: 0,
-    //  };
-
-    //  let netcode_config = NetConfig::Netcode {  
-    //      auth,
-    //      io,
-    //      config: NetcodeConfig {
-    //          client_timeout_secs: 10,
-    //          ..Default::default()
-    //      },};
-
-
-
-    let mut app = new_headless_app();
+    let mut server_app = new_headless_app();
     // app.add_plugins(PhysicsPlugins::default())
     //     .insert_resource(Gravity(Vec2::ZERO));
 
 
     let game_state = GameState::Menu;
-    app.insert_state(game_state);
+    server_app.insert_state(game_state);
     let server_multiplayer_state = MultiplayerState::None;
-    app.insert_state(server_multiplayer_state);
+    server_app.insert_state(server_multiplayer_state);
 
 
     // let steam_client: Arc<parking_lot::lock_api::RwLock<parking_lot::RawRwLock, SteamworksClient>> = Arc::new(RwLock::new(SteamworksClient::new_with_app_id(480).unwrap()));
-    app.add_plugins(ServerPlugins {
+    let (steam_result) = lightyear::prelude::steamworks::Client::init_app(480);
+
+      
+    let steam = match steam_result {
+        Err(e) => {
+            error!("Failed to initialize Steamworks client: {}", e);
+            None
+        }
+        Ok(steam_tuple) => {
+            steam_tuple.0.networking_utils().init_relay_network_access();
+            Some(steam_tuple)
+        }
+    };
+
+    // Insert Steamworks client resource if available
+    if let Some((steamclient, steam_single)) = steam.as_ref() {
+            info!("Steamworks server initialized successfully");
+            server_app.insert_resource(lightyear::prelude::SteamworksClient(steamclient.clone()));
+                // .insert_non_send_resource(steam_single.clone())
+                // .add_systems(
+                //     PreUpdate,
+                //     |steam: NonSend<lightyear::prelude::steamworks::SingleClient>| {
+                //         steam.run_callbacks();
+                //     },
+            // );
+        } else {
+            error!("Failed to initialize Steamworks client, running without Steam support");
+        }
+     
+
+
+    server_app.add_plugins(ServerPlugins {
         tick_duration: Duration::from_secs_f64(1.0 / FIXED_TIMESTEP_HZ),
     });
 
-    app.add_plugins(SharedPlugin);
+    server_app.add_plugins(SharedPlugin);
     
-    app.add_plugins(ExampleServerPlugin { 
+    server_app.add_plugins(ExampleServerPlugin { 
         server_crossbeam: Some(crossbeam_server),
         client_recieve_commands:  Some(client_commands_receive),
         server_send_commands:  Some(server_commands_send),
@@ -160,7 +176,7 @@ fn main() {
 
     match cli.mode {
         Mode::Full => { //Client here does spawn server in background
-            let mut send_app = SendApp(app);
+            let mut send_app = SendApp(server_app);
             std::thread::spawn(move || send_app.run());
             info!("Spawned Server as background task (server is not started yet");
         },
@@ -168,10 +184,10 @@ fn main() {
         Mode::Server => {
             info!("Started Server as main task (server is auto started)");
             let game_state = GameState::Game;
-            app.insert_state(game_state);
+            server_app.insert_state(game_state);
             let server_multiplayer_state = MultiplayerState::Server;
-            app.insert_state(server_multiplayer_state);
-            app.run();
+            server_app.insert_state(server_multiplayer_state);
+            server_app.run();
             return;
         },
     }
@@ -189,15 +205,23 @@ fn main() {
         steam_connect_to: None,
     };
 
-    App::new()
+    let mut client_app = App::new();
+
+
         //Bevy Setup
-        .add_plugins(DefaultPlugins.set(WindowPlugin {
+       client_app.add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 title: "Menu Example".to_string(),
                 ..Default::default()
             }),
             ..Default::default()
+        }).set(LogPlugin {
+            // custom_layer,
+            level: Level::INFO,
+            // filter: "lightyear_netcode=trace,lightyear_crossbeam=trace".to_string(), //
+            ..default() //
         }))
+       
 
         //Avian Physics
         // .add_plugins(PhysicsPlugins::default().build())
@@ -207,7 +231,22 @@ fn main() {
         .add_plugins(NetworkingPlugin { client_crossbeam: Some(crossbeam_client), 
             client_sender_commands: Some(client_commands_send.clone()),
             server_receive_commands: Some(server_commands_receive.clone()),
-        })
+        });
+
+        if let Some((steamclient, steam_single)) = steam {
+            info!("Steamworks client initialized successfully");
+            client_app.insert_resource(lightyear::prelude::SteamworksClient(steamclient.clone()))
+                .insert_non_send_resource(steam_single)
+                .add_systems(
+                    PreUpdate,
+                    |steam: NonSend<lightyear::prelude::steamworks::SingleClient>| {
+                        steam.run_callbacks();
+                    },
+            );
+        } else {
+            error!("Failed to initialize Steamworks client, running without Steam support");
+        }
+        client_app
         .insert_resource(client_config)
         //Menu Setup
         .init_state::<GameState>()
@@ -220,7 +259,8 @@ fn main() {
         //     OnEnter(GameState::Menu),
         //     despawn_screen::<GameCleanUp>,
         // )
-        // .add_plugins(WorldInspectorPlugin::new())
+        .add_plugins(EguiPlugin { enable_multipass_for_primary_context: true })
+        .add_plugins(WorldInspectorPlugin::new())
         .run();
 }
 
@@ -236,6 +276,12 @@ pub fn new_headless_app() -> App {
     let mut app = App::new();
     app.add_plugins(
         DefaultPlugins
+            // .set(LogPlugin {
+            //     // custom_layer,
+            //     level: Level::DEBUG,
+            //     filter: "lightyear_crossbeam=trace,lightyear_netcode=trace".to_string(), //
+            //     ..default() //lightyear::client::prediction::rollback=debug,lightyear::server::prediction=debug
+            // })
             .set(ImagePlugin::default_nearest())
             // Not strictly necessary, as the inclusion of ScheduleRunnerPlugin below
             // replaces the bevy_winit app runner and so a window is never created.
@@ -245,7 +291,8 @@ pub fn new_headless_app() -> App {
                 ..default()
             })
             // WinitPlugin will panic in environments without a display server.
-            .disable::<WinitPlugin>(),
+            .disable::<WinitPlugin>()
+            // .disable::<LogPlugin>(),
     );
 
     // ScheduleRunnerPlugin provides an alternative to the default bevy_winit app runner, which
@@ -276,7 +323,6 @@ impl SendApp {
         self.0.run();
     }
 }
-
 
 
 

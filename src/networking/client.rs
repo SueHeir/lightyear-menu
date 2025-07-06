@@ -32,11 +32,13 @@ const CLIENT_ADDR: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST),
 impl Plugin for ExampleClientPlugin {
     fn build(&self, app: &mut App) {
         // add our client-specific logic. Here we will just connect to the server
-        app.add_systems(Startup, spawn_client);
+        
         app.insert_resource(ClientStartupResources {
             client_crossbeam: self.client_crossbeam.clone(),
             client_sender_commands: self.client_sender_commands.clone(),
         });
+
+        app.add_systems(Startup, spawn_client);
 
         
         app.add_crossbeam_event(self.server_receive_commands.clone().unwrap());
@@ -58,22 +60,18 @@ impl Plugin for ExampleClientPlugin {
 }
 
 /// Spawn a client that connects to the server
-fn spawn_client(mut commands: Commands) -> Result {
+fn spawn_client(mut commands: Commands, mut client_startup: ResMut<ClientStartupResources>) -> Result {
     let auth = Authentication::Manual {
         server_addr: SERVER_ADDR,
-        client_id: 0,
+        client_id: 1,
         private_key: Key::default(),
         protocol_id: 0,
     };
     commands
         .spawn((
+            Name::new("Client"),
             Client::default(),
-            LocalAddr(CLIENT_ADDR),
-            PeerAddr(SERVER_ADDR),
-            Link::new(None),
-            ReplicationReceiver::default(),
-            NetcodeClient::new(auth, NetcodeConfig::default())?,
-            UdpIo::default(),
+            
 
             //Example CrossbeamIo Client
             // Client::default(),
@@ -134,18 +132,21 @@ fn client_connect(
 
         let auth = Authentication::Manual {
             server_addr: SERVER_ADDR,
-            client_id: 0,
+            client_id: 1,
             private_key: Key::default(),
             protocol_id: 0,
         };
        
 
-        commands.entity(client).try_remove::<UdpIo>().insert((
-            client_startup.client_crossbeam.clone().unwrap(), 
-            NetcodeClient::new(auth, NetcodeConfig::default())?,
-            PingManager::new(PingConfig {
+        commands.entity(client).try_remove::<UdpIo>().try_remove::<SteamClientIo>().insert((
+           PingManager::new(PingConfig {
                 ping_interval: Duration::default(),
             }),
+            NetcodeClient::new(auth, NetcodeConfig::default())?,
+            client_startup.client_crossbeam.clone().unwrap(), 
+            LocalAddr(CLIENT_ADDR),
+            PeerAddr(SERVER_ADDR),
+            Link::new(None), // This is the link to the server, which will be established when the client connects
         ));
 
         commands.trigger_targets(Connect, client);
@@ -161,7 +162,22 @@ fn client_connect(
         //     .unwrap();
         // let steam_client = steam_client.read();
         // let _ = steam_client.connect_to(client_config.steam_connect_to.unwrap());
-        //  commands.trigger_targets(Connect, client);
+        let auth = Authentication::Manual {
+            server_addr: SERVER_ADDR,
+            client_id: 1,
+            private_key: Key::default(),
+            protocol_id: 0,
+        };
+
+        commands.entity(client).try_remove::<UdpIo>().try_remove::<CrossbeamIo>().insert((
+            NetcodeClient::new(auth, NetcodeConfig::default())?,
+            SteamClientIo { target: ConnectTarget::Peer { steam_id: client_config.steam_connect_to.unwrap(), virtual_port: 4001 }, config: SessionConfig::default() },
+            Link::new(None), // This is the link to the server, which will be established when the client connects
+        ));
+
+
+
+        commands.trigger_targets(Connect, client);
         info!("Using Steam for client connection");
 
         return Ok(());
@@ -176,7 +192,13 @@ fn client_connect(
     };
 
     // Connect to the server using standard udp
-    commands.entity(client).try_remove::<CrossbeamIo>().insert((UdpIo::default(), NetcodeClient::new(auth, NetcodeConfig::default())?));
+    commands.entity(client).try_remove::<CrossbeamIo>().try_remove::<SteamClientIo>().insert((
+        Link::new(None),
+        UdpIo::default(), 
+        NetcodeClient::new(auth, NetcodeConfig::default())?,
+        LocalAddr(CLIENT_ADDR),
+        PeerAddr(SERVER_ADDR),
+    ));
 
     commands.trigger_targets(Connect, client);
 

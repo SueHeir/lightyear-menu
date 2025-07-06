@@ -9,9 +9,11 @@ running with -- client only runs client code (so you have to join a server, you 
 
 running with -- server only runs server code in terminal, and auto starts server
 
+running with -- full starts a client and server, which communicate via crossbeam messages
+
 # Not Working Part
 
-running with -- full starts a client and server, which communicate via crossbeam messages
+steam connections
 
 
 
