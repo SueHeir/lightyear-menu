@@ -5,9 +5,11 @@ use bevy_simple_text_input::{
     TextInput, TextInputSubmitEvent, TextInputSystem, TextInputTextColor, TextInputTextFont,
     TextInputValue,
 };
-use steamworks::{FriendFlags, SteamId};
+use lightyear::prelude::{steamworks::FriendFlags, SteamId, SteamworksClient};
 
-use crate::{networking::SteamworksResource, GameCleanUp, MultiplayerState};
+// use crate::{networking::SteamworksResource, GameCleanUp, MultiplayerState};
+
+use crate::MultiplayerState;
 
 use super::{despawn_screen, GameState, TEXT_COLOR};
 
@@ -79,13 +81,11 @@ struct SelectedOption;
 // All actions that can be triggered from a button click
 #[derive(Component)]
 enum MenuButtonAction {
-    HostServerAndJoin,
     SeperateAndJoin,
     JoinServerScreen,
     MainMenu,
     JoinSteamFriend(SteamId),
     JoinServer,
-    HostServer,
     Quit,
 }
 
@@ -173,10 +173,6 @@ fn main_menu_setup(mut commands: Commands) {
                         },
                     ));
 
-                    // Display three buttons for each action available from the main menu:
-                    // - new game
-                    // - settings
-                    // - quit
                     parent
                         .spawn((
                             Button,
@@ -186,26 +182,12 @@ fn main_menu_setup(mut commands: Commands) {
                         ))
                         .with_children(|parent| {
                             parent.spawn((
-                                Text::new("Play Seperate"),
+                                Text::new("Play"),
                                 button_text_font.clone(),
                                 TextColor(TEXT_COLOR),
                             ));
                         });
 
-                    parent
-                        .spawn((
-                            Button,
-                            button_node.clone(),
-                            BackgroundColor(NORMAL_BUTTON),
-                            MenuButtonAction::HostServerAndJoin,
-                        ))
-                        .with_children(|parent| {
-                            parent.spawn((
-                                Text::new("Play Host"),
-                                button_text_font.clone(),
-                                TextColor(TEXT_COLOR),
-                            ));
-                        });
 
                     parent
                         .spawn((
@@ -222,36 +204,6 @@ fn main_menu_setup(mut commands: Commands) {
                             ));
                         });
                         
-                    parent
-                        .spawn((
-                            Button,
-                            button_node.clone(),
-                            BackgroundColor(NORMAL_BUTTON),
-                            MenuButtonAction::HostServer,
-                        ))
-                        .with_children(|parent| {
-                            parent.spawn((
-                                Text::new("Just Server"),
-                                button_text_font.clone(),
-                                TextColor(TEXT_COLOR),
-                            ));
-                        });
-                    
-
-                    // parent
-                    //     .spawn((
-                    //         Button,
-                    //         button_node.clone(),
-                    //         BackgroundColor(NORMAL_BUTTON),
-                    //         MenuButtonAction::HostSeperateServerAndJoin,
-                    //     ))
-                    //     .with_children(|parent| {
-                    //         parent.spawn((
-                    //             Text::new("Host Seperate Server and Join"),
-                    //             button_text_font.clone(),
-                    //             TextColor(TEXT_COLOR),
-                    //         ));
-                    //     });
 
                     parent
                         .spawn((
@@ -286,7 +238,7 @@ fn menu_action(
         if *interaction == Interaction::Pressed {
             match menu_button_action {
                 MenuButtonAction::Quit => {
-                    app_exit_events.send(AppExit::Success);
+                    app_exit_events.write(AppExit::Success);
                 }
                 MenuButtonAction::JoinServerScreen => {
                     menu_state.set(MenuState::JoinServer);
@@ -294,13 +246,8 @@ fn menu_action(
                 MenuButtonAction::MainMenu => {
                     menu_state.set(MenuState::Main);
                 }
-                MenuButtonAction::HostServerAndJoin => {
-                    game_state.set(GameState::Game);
-                    menu_state.set(MenuState::Disabled);
-                    multiplayer_state.set(MultiplayerState::HostServer)
-                }
                 MenuButtonAction::JoinSteamFriend(id) => {
-                    client_setup_info.steam_testing = true;
+                    
                     client_setup_info.steam_connect_to = Some(*id);
 
                     game_state.set(GameState::Game);
@@ -310,35 +257,31 @@ fn menu_action(
                 MenuButtonAction::JoinServer => {
                     if Ipv4Addr::from_str(&client_setup_info.address).is_ok() {
                         // client_setup_info.address = text_input_value.single().0.clone();
+                        client_setup_info.seperate_mode = false;
+                        client_setup_info.steam_connect_to = None;
                         game_state.set(GameState::Game);
                         menu_state.set(MenuState::Disabled);
                         multiplayer_state.set(MultiplayerState::Client)
                     }
                 }
-                MenuButtonAction::HostServer => {
-                    game_state.set(GameState::Game);
-                    menu_state.set(MenuState::Disabled);
-                    multiplayer_state.set(MultiplayerState::Server)
-                }
                 MenuButtonAction::SeperateAndJoin => {
+                    client_setup_info.seperate_mode = true;
+                    client_setup_info.steam_connect_to = None;
                     game_state.set(GameState::Game);
                     menu_state.set(MenuState::Disabled);
                     multiplayer_state.set(MultiplayerState::ClientSpawnServer);
+                    // multiplayer_state.set(MultiplayerState::Client);
                 },
             }
         }
     }
 }
 
-fn join_server_menu_setup(mut commands: Commands, mut steamworks: ResMut<SteamworksResource>) {
+fn join_server_menu_setup(mut commands: Commands, mut steamworks: ResMut<SteamworksClient> ) {//mut steamworks: ResMut<SteamworksResource>
     let mut steam_friends = Vec::new();
 
     for friend in steamworks
-        .steamworks
-        .read()
-        .get_client()
-        .friends()
-        .get_friends(FriendFlags::all())
+        .0.friends().get_friends(FriendFlags::all()).iter()
     {
         if let Some(game_info) = friend.game_played() {
             if game_info.game.app_id().0 == 480 {
@@ -480,6 +423,8 @@ fn listener(
         client_setup_info.address = event.value.clone();
 
         if Ipv4Addr::from_str(&client_setup_info.address).is_ok() {
+            client_setup_info.seperate_mode = false;
+            client_setup_info.steam_connect_to = None;
             game_state.set(GameState::Game);
             menu_state.set(MenuState::Disabled);
             multiplayer_state.set(MultiplayerState::Client)
