@@ -2165,9 +2165,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.5.40"
+version = "4.5.41"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "40b6887a1d8685cebccf115538db5c0efe625ccac9696ad45c409d96566e910f"
+checksum = "be92d32e80243a54711e5d7ce823c35c41c9d929dc4ab58e1276f625841aadf9"
 dependencies = [
  "clap_builder",
  "clap_derive",
@@ -2175,9 +2175,9 @@ dependencies = [
 
 [[package]]
 name = "clap_builder"
-version = "4.5.40"
+version = "4.5.41"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e0c66c08ce9f0c698cbce5c0279d0bb6ac936d8674174fe48f736533b964f59e"
+checksum = "707eab41e9622f9139419d573eca0900137718000c517d47da73045f54331c3d"
 dependencies = [
  "anstream",
  "anstyle",
@@ -2187,9 +2187,9 @@ dependencies = [
 
 [[package]]
 name = "clap_derive"
-version = "4.5.40"
+version = "4.5.41"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d2c7947ae4cc3d851207c1adb5b5e260ff0cca11446b1d6d1423788e442257ce"
+checksum = "ef4f52386a59ca4c860f7393bcf8abd8dfd91ecccc0f774635ff68e92eeef491"
 dependencies = [
  "heck",
  "proc-macro2",
@@ -3984,7 +3984,22 @@ dependencies = [
  "dyn-eq",
  "dyn-hash",
  "itertools 0.14.0",
- "leafwing_input_manager_macros",
+ "leafwing_input_manager_macros 0.17.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde",
+ "serde_flexitos",
+]
+
+[[package]]
+name = "leafwing-input-manager"
+version = "0.17.0"
+source = "git+https://github.com/cBournhonesque/leafwing-input-manager/?branch=cb%2Foverride-state-function#604dbd62ffcf56c8295371d2ecb3a6bda28406e2"
+dependencies = [
+ "bevy",
+ "dyn-clone",
+ "dyn-eq",
+ "dyn-hash",
+ "itertools 0.14.0",
+ "leafwing_input_manager_macros 0.17.0 (git+https://github.com/cBournhonesque/leafwing-input-manager/?branch=cb%2Foverride-state-function)",
  "serde",
  "serde_flexitos",
 ]
@@ -3994,6 +4009,17 @@ name = "leafwing_input_manager_macros"
 version = "0.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2226cb83129176a6c634f2ce0828c2c29896ea0898fc198636f98696b8056890"
+dependencies = [
+ "proc-macro-crate",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "leafwing_input_manager_macros"
+version = "0.17.0"
+source = "git+https://github.com/cBournhonesque/leafwing-input-manager/?branch=cb%2Foverride-state-function#604dbd62ffcf56c8295371d2ecb3a6bda28406e2"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
@@ -4074,7 +4100,7 @@ dependencies = [
 [[package]]
 name = "lightyear"
 version = "0.21.1"
-source = "git+https://github.com/SueHeir/lightyear.git#fd014194e62b96cb7cf41afd6d4a3fe6fbb98d3a"
+source = "git+https://github.com/cBournhonesque/lightyear.git#cdfd02df72cea19e65690a3eb22ee67a536851a3"
 dependencies = [
  "aeronet_io",
  "bevy_app",
@@ -4086,7 +4112,7 @@ dependencies = [
  "lightyear_avian2d",
  "lightyear_avian3d",
  "lightyear_connection",
- "lightyear_core 0.21.1 (git+https://github.com/SueHeir/lightyear.git)",
+ "lightyear_core 0.21.1 (git+https://github.com/cBournhonesque/lightyear.git)",
  "lightyear_crossbeam",
  "lightyear_frame_interpolation",
  "lightyear_inputs",
@@ -4099,12 +4125,12 @@ dependencies = [
  "lightyear_netcode",
  "lightyear_prediction",
  "lightyear_replication",
- "lightyear_serde 0.21.1 (git+https://github.com/SueHeir/lightyear.git)",
+ "lightyear_serde 0.21.1 (git+https://github.com/cBournhonesque/lightyear.git)",
  "lightyear_steam",
  "lightyear_sync",
  "lightyear_transport",
  "lightyear_udp",
- "lightyear_utils 0.21.1 (git+https://github.com/SueHeir/lightyear.git)",
+ "lightyear_utils 0.21.1 (git+https://github.com/cBournhonesque/lightyear.git)",
  "lightyear_webtransport",
  "serde",
  "thiserror 2.0.12",
@@ -4121,7 +4147,7 @@ dependencies = [
  "bevy_simple_text_input",
  "clap",
  "crossbeam-channel",
- "leafwing-input-manager",
+ "leafwing-input-manager 0.17.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "lightyear",
  "lightyear_core 0.21.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot",
@@ -4136,7 +4162,7 @@ dependencies = [
 [[package]]
 name = "lightyear_aeronet"
 version = "0.21.1"
-source = "git+https://github.com/SueHeir/lightyear.git#fd014194e62b96cb7cf41afd6d4a3fe6fbb98d3a"
+source = "git+https://github.com/cBournhonesque/lightyear.git#cdfd02df72cea19e65690a3eb22ee67a536851a3"
 dependencies = [
  "aeronet_io",
  "bevy_app",
@@ -4149,7 +4175,7 @@ dependencies = [
 [[package]]
 name = "lightyear_avian2d"
 version = "0.21.1"
-source = "git+https://github.com/SueHeir/lightyear.git#fd014194e62b96cb7cf41afd6d4a3fe6fbb98d3a"
+source = "git+https://github.com/cBournhonesque/lightyear.git#cdfd02df72cea19e65690a3eb22ee67a536851a3"
 dependencies = [
  "avian2d",
  "bevy_app",
@@ -4157,7 +4183,7 @@ dependencies = [
  "bevy_math",
  "bevy_transform",
  "bevy_utils",
- "lightyear_core 0.21.1 (git+https://github.com/SueHeir/lightyear.git)",
+ "lightyear_core 0.21.1 (git+https://github.com/cBournhonesque/lightyear.git)",
  "lightyear_frame_interpolation",
  "lightyear_interpolation",
  "lightyear_link",
@@ -4169,7 +4195,7 @@ dependencies = [
 [[package]]
 name = "lightyear_avian3d"
 version = "0.21.1"
-source = "git+https://github.com/SueHeir/lightyear.git#fd014194e62b96cb7cf41afd6d4a3fe6fbb98d3a"
+source = "git+https://github.com/cBournhonesque/lightyear.git#cdfd02df72cea19e65690a3eb22ee67a536851a3"
 dependencies = [
  "avian3d",
  "bevy_app",
@@ -4177,7 +4203,7 @@ dependencies = [
  "bevy_math",
  "bevy_transform",
  "bevy_utils",
- "lightyear_core 0.21.1 (git+https://github.com/SueHeir/lightyear.git)",
+ "lightyear_core 0.21.1 (git+https://github.com/cBournhonesque/lightyear.git)",
  "lightyear_frame_interpolation",
  "lightyear_interpolation",
  "lightyear_link",
@@ -4189,16 +4215,16 @@ dependencies = [
 [[package]]
 name = "lightyear_connection"
 version = "0.21.1"
-source = "git+https://github.com/SueHeir/lightyear.git#fd014194e62b96cb7cf41afd6d4a3fe6fbb98d3a"
+source = "git+https://github.com/cBournhonesque/lightyear.git#cdfd02df72cea19e65690a3eb22ee67a536851a3"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
  "bevy_platform",
  "bevy_reflect",
  "bytes",
- "lightyear_core 0.21.1 (git+https://github.com/SueHeir/lightyear.git)",
+ "lightyear_core 0.21.1 (git+https://github.com/cBournhonesque/lightyear.git)",
  "lightyear_link",
- "lightyear_serde 0.21.1 (git+https://github.com/SueHeir/lightyear.git)",
+ "lightyear_serde 0.21.1 (git+https://github.com/cBournhonesque/lightyear.git)",
  "serde",
  "smallvec",
  "thiserror 2.0.12",
@@ -4227,7 +4253,7 @@ dependencies = [
 [[package]]
 name = "lightyear_core"
 version = "0.21.1"
-source = "git+https://github.com/SueHeir/lightyear.git#fd014194e62b96cb7cf41afd6d4a3fe6fbb98d3a"
+source = "git+https://github.com/cBournhonesque/lightyear.git#cdfd02df72cea19e65690a3eb22ee67a536851a3"
 dependencies = [
  "bevy_app",
  "bevy_derive",
@@ -4236,8 +4262,8 @@ dependencies = [
  "bevy_reflect",
  "bevy_time",
  "chrono",
- "lightyear_serde 0.21.1 (git+https://github.com/SueHeir/lightyear.git)",
- "lightyear_utils 0.21.1 (git+https://github.com/SueHeir/lightyear.git)",
+ "lightyear_serde 0.21.1 (git+https://github.com/cBournhonesque/lightyear.git)",
+ "lightyear_utils 0.21.1 (git+https://github.com/cBournhonesque/lightyear.git)",
  "serde",
  "tracing",
 ]
@@ -4245,14 +4271,14 @@ dependencies = [
 [[package]]
 name = "lightyear_crossbeam"
 version = "0.21.1"
-source = "git+https://github.com/SueHeir/lightyear.git#fd014194e62b96cb7cf41afd6d4a3fe6fbb98d3a"
+source = "git+https://github.com/cBournhonesque/lightyear.git#cdfd02df72cea19e65690a3eb22ee67a536851a3"
 dependencies = [
  "aeronet_io",
  "bevy_app",
  "bevy_ecs",
  "bytes",
  "crossbeam-channel",
- "lightyear_core 0.21.1 (git+https://github.com/SueHeir/lightyear.git)",
+ "lightyear_core 0.21.1 (git+https://github.com/cBournhonesque/lightyear.git)",
  "lightyear_link",
  "tracing",
 ]
@@ -4260,15 +4286,15 @@ dependencies = [
 [[package]]
 name = "lightyear_frame_interpolation"
 version = "0.21.1"
-source = "git+https://github.com/SueHeir/lightyear.git#fd014194e62b96cb7cf41afd6d4a3fe6fbb98d3a"
+source = "git+https://github.com/cBournhonesque/lightyear.git#cdfd02df72cea19e65690a3eb22ee67a536851a3"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
  "bevy_time",
  "bevy_transform",
- "lightyear_core 0.21.1 (git+https://github.com/SueHeir/lightyear.git)",
+ "lightyear_connection",
+ "lightyear_core 0.21.1 (git+https://github.com/cBournhonesque/lightyear.git)",
  "lightyear_interpolation",
- "lightyear_prediction",
  "lightyear_replication",
  "tracing",
 ]
@@ -4276,13 +4302,14 @@ dependencies = [
 [[package]]
 name = "lightyear_inputs"
 version = "0.21.1"
-source = "git+https://github.com/SueHeir/lightyear.git#fd014194e62b96cb7cf41afd6d4a3fe6fbb98d3a"
+source = "git+https://github.com/cBournhonesque/lightyear.git#cdfd02df72cea19e65690a3eb22ee67a536851a3"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
+ "bevy_platform",
  "bevy_reflect",
  "lightyear_connection",
- "lightyear_core 0.21.1 (git+https://github.com/SueHeir/lightyear.git)",
+ "lightyear_core 0.21.1 (git+https://github.com/cBournhonesque/lightyear.git)",
  "lightyear_interpolation",
  "lightyear_link",
  "lightyear_messages",
@@ -4297,7 +4324,7 @@ dependencies = [
 [[package]]
 name = "lightyear_inputs_bei"
 version = "0.21.1"
-source = "git+https://github.com/SueHeir/lightyear.git#fd014194e62b96cb7cf41afd6d4a3fe6fbb98d3a"
+source = "git+https://github.com/cBournhonesque/lightyear.git#cdfd02df72cea19e65690a3eb22ee67a536851a3"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
@@ -4305,9 +4332,9 @@ dependencies = [
  "bevy_platform",
  "bevy_reflect",
  "lightyear_connection",
- "lightyear_core 0.21.1 (git+https://github.com/SueHeir/lightyear.git)",
+ "lightyear_core 0.21.1 (git+https://github.com/cBournhonesque/lightyear.git)",
  "lightyear_inputs",
- "lightyear_utils 0.21.1 (git+https://github.com/SueHeir/lightyear.git)",
+ "lightyear_utils 0.21.1 (git+https://github.com/cBournhonesque/lightyear.git)",
  "serde",
  "thiserror 2.0.12",
  "tracing",
@@ -4316,7 +4343,7 @@ dependencies = [
 [[package]]
 name = "lightyear_inputs_leafwing"
 version = "0.21.1"
-source = "git+https://github.com/SueHeir/lightyear.git#fd014194e62b96cb7cf41afd6d4a3fe6fbb98d3a"
+source = "git+https://github.com/cBournhonesque/lightyear.git#cdfd02df72cea19e65690a3eb22ee67a536851a3"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
@@ -4324,8 +4351,8 @@ dependencies = [
  "bevy_math",
  "bevy_platform",
  "bevy_reflect",
- "leafwing-input-manager",
- "lightyear_core 0.21.1 (git+https://github.com/SueHeir/lightyear.git)",
+ "leafwing-input-manager 0.17.0 (git+https://github.com/cBournhonesque/leafwing-input-manager/?branch=cb%2Foverride-state-function)",
+ "lightyear_core 0.21.1 (git+https://github.com/cBournhonesque/lightyear.git)",
  "lightyear_inputs",
  "serde",
  "tracing",
@@ -4334,12 +4361,12 @@ dependencies = [
 [[package]]
 name = "lightyear_inputs_native"
 version = "0.21.1"
-source = "git+https://github.com/SueHeir/lightyear.git#fd014194e62b96cb7cf41afd6d4a3fe6fbb98d3a"
+source = "git+https://github.com/cBournhonesque/lightyear.git#cdfd02df72cea19e65690a3eb22ee67a536851a3"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
  "bevy_reflect",
- "lightyear_core 0.21.1 (git+https://github.com/SueHeir/lightyear.git)",
+ "lightyear_core 0.21.1 (git+https://github.com/cBournhonesque/lightyear.git)",
  "lightyear_inputs",
  "serde",
  "tracing",
@@ -4348,7 +4375,7 @@ dependencies = [
 [[package]]
 name = "lightyear_interpolation"
 version = "0.21.1"
-source = "git+https://github.com/SueHeir/lightyear.git#fd014194e62b96cb7cf41afd6d4a3fe6fbb98d3a"
+source = "git+https://github.com/cBournhonesque/lightyear.git#cdfd02df72cea19e65690a3eb22ee67a536851a3"
 dependencies = [
  "bevy_app",
  "bevy_derive",
@@ -4359,12 +4386,12 @@ dependencies = [
  "bevy_time",
  "bevy_utils",
  "lightyear_connection",
- "lightyear_core 0.21.1 (git+https://github.com/SueHeir/lightyear.git)",
+ "lightyear_core 0.21.1 (git+https://github.com/cBournhonesque/lightyear.git)",
  "lightyear_messages",
  "lightyear_replication",
- "lightyear_serde 0.21.1 (git+https://github.com/SueHeir/lightyear.git)",
+ "lightyear_serde 0.21.1 (git+https://github.com/cBournhonesque/lightyear.git)",
  "lightyear_sync",
- "lightyear_utils 0.21.1 (git+https://github.com/SueHeir/lightyear.git)",
+ "lightyear_utils 0.21.1 (git+https://github.com/cBournhonesque/lightyear.git)",
  "serde",
  "tracing",
 ]
@@ -4372,14 +4399,14 @@ dependencies = [
 [[package]]
 name = "lightyear_link"
 version = "0.21.1"
-source = "git+https://github.com/SueHeir/lightyear.git#fd014194e62b96cb7cf41afd6d4a3fe6fbb98d3a"
+source = "git+https://github.com/cBournhonesque/lightyear.git#cdfd02df72cea19e65690a3eb22ee67a536851a3"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
  "bevy_reflect",
  "bytes",
- "lightyear_core 0.21.1 (git+https://github.com/SueHeir/lightyear.git)",
- "lightyear_utils 0.21.1 (git+https://github.com/SueHeir/lightyear.git)",
+ "lightyear_core 0.21.1 (git+https://github.com/cBournhonesque/lightyear.git)",
+ "lightyear_utils 0.21.1 (git+https://github.com/cBournhonesque/lightyear.git)",
  "rand 0.9.1",
  "tracing",
 ]
@@ -4387,18 +4414,18 @@ dependencies = [
 [[package]]
 name = "lightyear_messages"
 version = "0.21.1"
-source = "git+https://github.com/SueHeir/lightyear.git#fd014194e62b96cb7cf41afd6d4a3fe6fbb98d3a"
+source = "git+https://github.com/cBournhonesque/lightyear.git#cdfd02df72cea19e65690a3eb22ee67a536851a3"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
  "bevy_reflect",
  "bytes",
  "lightyear_connection",
- "lightyear_core 0.21.1 (git+https://github.com/SueHeir/lightyear.git)",
+ "lightyear_core 0.21.1 (git+https://github.com/cBournhonesque/lightyear.git)",
  "lightyear_link",
- "lightyear_serde 0.21.1 (git+https://github.com/SueHeir/lightyear.git)",
+ "lightyear_serde 0.21.1 (git+https://github.com/cBournhonesque/lightyear.git)",
  "lightyear_transport",
- "lightyear_utils 0.21.1 (git+https://github.com/SueHeir/lightyear.git)",
+ "lightyear_utils 0.21.1 (git+https://github.com/cBournhonesque/lightyear.git)",
  "serde",
  "thiserror 2.0.12",
  "tracing",
@@ -4407,7 +4434,7 @@ dependencies = [
 [[package]]
 name = "lightyear_netcode"
 version = "0.21.1"
-source = "git+https://github.com/SueHeir/lightyear.git#fd014194e62b96cb7cf41afd6d4a3fe6fbb98d3a"
+source = "git+https://github.com/cBournhonesque/lightyear.git#cdfd02df72cea19e65690a3eb22ee67a536851a3"
 dependencies = [
  "aeronet_io",
  "bevy_app",
@@ -4417,11 +4444,11 @@ dependencies = [
  "bytes",
  "chacha20poly1305",
  "lightyear_connection",
- "lightyear_core 0.21.1 (git+https://github.com/SueHeir/lightyear.git)",
+ "lightyear_core 0.21.1 (git+https://github.com/cBournhonesque/lightyear.git)",
  "lightyear_link",
- "lightyear_serde 0.21.1 (git+https://github.com/SueHeir/lightyear.git)",
+ "lightyear_serde 0.21.1 (git+https://github.com/cBournhonesque/lightyear.git)",
  "lightyear_transport",
- "lightyear_utils 0.21.1 (git+https://github.com/SueHeir/lightyear.git)",
+ "lightyear_utils 0.21.1 (git+https://github.com/cBournhonesque/lightyear.git)",
  "no_std_io2",
  "rand 0.9.1",
  "thiserror 2.0.12",
@@ -4432,9 +4459,10 @@ dependencies = [
 [[package]]
 name = "lightyear_prediction"
 version = "0.21.1"
-source = "git+https://github.com/SueHeir/lightyear.git#fd014194e62b96cb7cf41afd6d4a3fe6fbb98d3a"
+source = "git+https://github.com/cBournhonesque/lightyear.git#cdfd02df72cea19e65690a3eb22ee67a536851a3"
 dependencies = [
  "bevy_app",
+ "bevy_derive",
  "bevy_diagnostic",
  "bevy_ecs",
  "bevy_math",
@@ -4442,13 +4470,15 @@ dependencies = [
  "bevy_reflect",
  "bevy_time",
  "lightyear_connection",
- "lightyear_core 0.21.1 (git+https://github.com/SueHeir/lightyear.git)",
+ "lightyear_core 0.21.1 (git+https://github.com/cBournhonesque/lightyear.git)",
+ "lightyear_frame_interpolation",
+ "lightyear_interpolation",
  "lightyear_link",
  "lightyear_messages",
  "lightyear_replication",
- "lightyear_serde 0.21.1 (git+https://github.com/SueHeir/lightyear.git)",
+ "lightyear_serde 0.21.1 (git+https://github.com/cBournhonesque/lightyear.git)",
  "lightyear_sync",
- "lightyear_utils 0.21.1 (git+https://github.com/SueHeir/lightyear.git)",
+ "lightyear_utils 0.21.1 (git+https://github.com/cBournhonesque/lightyear.git)",
  "parking_lot",
  "seahash",
  "serde",
@@ -4458,8 +4488,10 @@ dependencies = [
 [[package]]
 name = "lightyear_replication"
 version = "0.21.1"
-source = "git+https://github.com/SueHeir/lightyear.git#fd014194e62b96cb7cf41afd6d4a3fe6fbb98d3a"
+source = "git+https://github.com/cBournhonesque/lightyear.git#cdfd02df72cea19e65690a3eb22ee67a536851a3"
 dependencies = [
+ "avian2d",
+ "avian3d",
  "bevy_app",
  "bevy_ecs",
  "bevy_platform",
@@ -4470,12 +4502,12 @@ dependencies = [
  "bytes",
  "dashmap",
  "lightyear_connection",
- "lightyear_core 0.21.1 (git+https://github.com/SueHeir/lightyear.git)",
+ "lightyear_core 0.21.1 (git+https://github.com/cBournhonesque/lightyear.git)",
  "lightyear_link",
  "lightyear_messages",
- "lightyear_serde 0.21.1 (git+https://github.com/SueHeir/lightyear.git)",
+ "lightyear_serde 0.21.1 (git+https://github.com/cBournhonesque/lightyear.git)",
  "lightyear_transport",
- "lightyear_utils 0.21.1 (git+https://github.com/SueHeir/lightyear.git)",
+ "lightyear_utils 0.21.1 (git+https://github.com/cBournhonesque/lightyear.git)",
  "serde",
  "smallvec",
  "thiserror 2.0.12",
@@ -4505,7 +4537,7 @@ dependencies = [
 [[package]]
 name = "lightyear_serde"
 version = "0.21.1"
-source = "git+https://github.com/SueHeir/lightyear.git#fd014194e62b96cb7cf41afd6d4a3fe6fbb98d3a"
+source = "git+https://github.com/cBournhonesque/lightyear.git#cdfd02df72cea19e65690a3eb22ee67a536851a3"
 dependencies = [
  "bevy_derive",
  "bevy_ecs",
@@ -4524,7 +4556,7 @@ dependencies = [
 [[package]]
 name = "lightyear_steam"
 version = "0.21.1"
-source = "git+https://github.com/SueHeir/lightyear.git#fd014194e62b96cb7cf41afd6d4a3fe6fbb98d3a"
+source = "git+https://github.com/cBournhonesque/lightyear.git#cdfd02df72cea19e65690a3eb22ee67a536851a3"
 dependencies = [
  "aeronet_io",
  "aeronet_steam",
@@ -4532,7 +4564,7 @@ dependencies = [
  "bevy_ecs",
  "lightyear_aeronet",
  "lightyear_connection",
- "lightyear_core 0.21.1 (git+https://github.com/SueHeir/lightyear.git)",
+ "lightyear_core 0.21.1 (git+https://github.com/cBournhonesque/lightyear.git)",
  "lightyear_link",
  "thiserror 2.0.12",
  "tracing",
@@ -4541,7 +4573,7 @@ dependencies = [
 [[package]]
 name = "lightyear_sync"
 version = "0.21.1"
-source = "git+https://github.com/SueHeir/lightyear.git#fd014194e62b96cb7cf41afd6d4a3fe6fbb98d3a"
+source = "git+https://github.com/cBournhonesque/lightyear.git#cdfd02df72cea19e65690a3eb22ee67a536851a3"
 dependencies = [
  "bevy_app",
  "bevy_derive",
@@ -4551,12 +4583,12 @@ dependencies = [
  "bevy_time",
  "bevy_utils",
  "lightyear_connection",
- "lightyear_core 0.21.1 (git+https://github.com/SueHeir/lightyear.git)",
+ "lightyear_core 0.21.1 (git+https://github.com/cBournhonesque/lightyear.git)",
  "lightyear_link",
  "lightyear_messages",
- "lightyear_serde 0.21.1 (git+https://github.com/SueHeir/lightyear.git)",
+ "lightyear_serde 0.21.1 (git+https://github.com/cBournhonesque/lightyear.git)",
  "lightyear_transport",
- "lightyear_utils 0.21.1 (git+https://github.com/SueHeir/lightyear.git)",
+ "lightyear_utils 0.21.1 (git+https://github.com/cBournhonesque/lightyear.git)",
  "serde",
  "tracing",
 ]
@@ -4564,7 +4596,7 @@ dependencies = [
 [[package]]
 name = "lightyear_transport"
 version = "0.21.1"
-source = "git+https://github.com/SueHeir/lightyear.git#fd014194e62b96cb7cf41afd6d4a3fe6fbb98d3a"
+source = "git+https://github.com/cBournhonesque/lightyear.git#cdfd02df72cea19e65690a3eb22ee67a536851a3"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
@@ -4578,10 +4610,10 @@ dependencies = [
  "governor",
  "indexmap",
  "lightyear_connection",
- "lightyear_core 0.21.1 (git+https://github.com/SueHeir/lightyear.git)",
+ "lightyear_core 0.21.1 (git+https://github.com/cBournhonesque/lightyear.git)",
  "lightyear_link",
- "lightyear_serde 0.21.1 (git+https://github.com/SueHeir/lightyear.git)",
- "lightyear_utils 0.21.1 (git+https://github.com/SueHeir/lightyear.git)",
+ "lightyear_serde 0.21.1 (git+https://github.com/cBournhonesque/lightyear.git)",
+ "lightyear_utils 0.21.1 (git+https://github.com/cBournhonesque/lightyear.git)",
  "nonzero_ext",
  "ringbuffer",
  "serde",
@@ -4592,14 +4624,14 @@ dependencies = [
 [[package]]
 name = "lightyear_udp"
 version = "0.21.1"
-source = "git+https://github.com/SueHeir/lightyear.git#fd014194e62b96cb7cf41afd6d4a3fe6fbb98d3a"
+source = "git+https://github.com/cBournhonesque/lightyear.git#cdfd02df72cea19e65690a3eb22ee67a536851a3"
 dependencies = [
  "aeronet_io",
  "bevy_app",
  "bevy_ecs",
  "bevy_platform",
  "bytes",
- "lightyear_core 0.21.1 (git+https://github.com/SueHeir/lightyear.git)",
+ "lightyear_core 0.21.1 (git+https://github.com/cBournhonesque/lightyear.git)",
  "lightyear_link",
  "thiserror 2.0.12",
  "tracing",
@@ -4623,13 +4655,13 @@ dependencies = [
 [[package]]
 name = "lightyear_utils"
 version = "0.21.1"
-source = "git+https://github.com/SueHeir/lightyear.git#fd014194e62b96cb7cf41afd6d4a3fe6fbb98d3a"
+source = "git+https://github.com/cBournhonesque/lightyear.git#cdfd02df72cea19e65690a3eb22ee67a536851a3"
 dependencies = [
  "bevy_ecs",
  "bevy_platform",
  "bevy_reflect",
  "hashbrown 0.15.4",
- "lightyear_serde 0.21.1 (git+https://github.com/SueHeir/lightyear.git)",
+ "lightyear_serde 0.21.1 (git+https://github.com/cBournhonesque/lightyear.git)",
  "paste",
  "seahash",
 ]
@@ -4637,7 +4669,7 @@ dependencies = [
 [[package]]
 name = "lightyear_webtransport"
 version = "0.21.1"
-source = "git+https://github.com/SueHeir/lightyear.git#fd014194e62b96cb7cf41afd6d4a3fe6fbb98d3a"
+source = "git+https://github.com/cBournhonesque/lightyear.git#cdfd02df72cea19e65690a3eb22ee67a536851a3"
 dependencies = [
  "aeronet_io",
  "aeronet_webtransport",
@@ -6396,9 +6428,9 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.23.28"
+version = "0.23.29"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7160e3e10bf4535308537f3c4e1641468cd0e485175d6163087c0393c7d46643"
+checksum = "2491382039b29b9b11ff08b76ff6c97cf287671dbb74f0be44bda389fffe9bd1"
 dependencies = [
  "once_cell",
  "ring",
@@ -6441,9 +6473,9 @@ dependencies = [
 
 [[package]]
 name = "rustls-webpki"
-version = "0.103.3"
+version = "0.103.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e4a72fe2bcf7a6ac6fd7d0b9e5cb68aeb7d4c0a0271730218b3e92d43b4eb435"
+checksum = "0a17884ae0c1b773f1ccd2bd4a8c72f16da897310a98b0e84bf349ad5ead92fc"
 dependencies = [
  "ring",
  "rustls-pki-types",
@@ -8673,9 +8705,9 @@ checksum = "b9cc00251562a284751c9973bace760d86c0276c471b4be569fe6b068ee97a56"
 
 [[package]]
 name = "xml-rs"
-version = "0.8.26"
+version = "0.8.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a62ce76d9b56901b19a74f19431b0d8b3bc7ca4ad685a746dfd78ca8f4fc6bda"
+checksum = "6fd8403733700263c6eb89f192880191f1b83e332f7a20371ddcf421c4a337c7"
 
 [[package]]
 name = "xwt-core"

@@ -60,11 +60,16 @@ impl Plugin for ExampleServerPlugin {
             NetcodeServer::new(NetcodeConfig::default()),
             LocalAddr(SERVER_ADDR),
             ServerUdpIo::default(),
-            SteamServerIo {
+            
+        )).id();
+
+
+        if self.steam.is_some() {
+            app.world_mut().entities_and_commands().1.entity(server_entity).insert(SteamServerIo {
                 target: ListenTarget::Peer { virtual_port: 4001 },
                 config: SessionConfig::default(),
-            }
-        )).id();
+            });
+        }
 
          if let Some(server_crossbeam) = &self.server_crossbeam {
             // You need to provide a valid client_id here. For demonstration, we'll use 12345.
