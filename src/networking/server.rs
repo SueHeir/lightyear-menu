@@ -71,20 +71,20 @@ impl Plugin for ExampleServerPlugin {
             });
         }
 
-         if let Some(server_crossbeam) = &self.server_crossbeam {
-            // You need to provide a valid client_id here. For demonstration, we'll use 12345.
-            info!("Add a Linked connection for host client to server");
+        //  if let Some(server_crossbeam) = &self.server_crossbeam {
+        //     // You need to provide a valid client_id here. For demonstration, we'll use 12345.
+        //     info!("Add a Linked connection for host client to server");
             
-            let mut entity = app.world_mut().spawn(LinkOf {
-                server: server_entity,
-            });
-            entity.insert(PingManager::new(PingConfig {
-                ping_interval: Duration::default(),
-            }));
-            entity.insert(Link::new(None));
-            entity.insert(Linked);
-            entity.insert(server_crossbeam.clone());
-        } 
+        //     let mut entity = app.world_mut().spawn(LinkOf {
+        //         server: server_entity,
+        //     });
+        //     entity.insert(PingManager::new(PingConfig {
+        //         ping_interval: Duration::default(),
+        //     }));
+        //     entity.insert(Link::new(None));
+        //     entity.insert(Linked);
+        //     entity.insert(server_crossbeam.clone());
+        // } 
 
         app.insert_resource(ServerStartupResources {
             server_crossbeam: self.server_crossbeam.clone(),

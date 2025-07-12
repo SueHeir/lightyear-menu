@@ -277,27 +277,30 @@ fn menu_action(
     }
 }
 
-fn join_server_menu_setup(mut commands: Commands, mut steamworks: ResMut<SteamworksClient> ) {//mut steamworks: ResMut<SteamworksResource>
+fn join_server_menu_setup(mut commands: Commands, mut steamworks: Option<ResMut<SteamworksClient>>) {//mut steamworks: ResMut<SteamworksResource>
     let mut steam_friends = Vec::new();
 
-    for friend in steamworks
+    if let Some(steamworks) = steamworks.as_mut() {
+         for friend in steamworks
         .0.friends().get_friends(FriendFlags::all()).iter()
-    {
-        if let Some(game_info) = friend.game_played() {
-            if game_info.game.app_id().0 == 480 {
-                steam_friends.push((friend.name(), friend.id()));
-                println!(
-                    "{:?} {:?} {:?} {:?} {:?} {:?}",
-                    friend.name(),
-                    friend.id(),
-                    game_info.game_address,
-                    game_info.game_port,
-                    game_info.query_port,
-                    game_info.lobby
-                )
+        {
+            if let Some(game_info) = friend.game_played() {
+                if game_info.game.app_id().0 == 480 {
+                    steam_friends.push((friend.name(), friend.id()));
+                    println!(
+                        "{:?} {:?} {:?} {:?} {:?} {:?}",
+                        friend.name(),
+                        friend.id(),
+                        game_info.game_address,
+                        game_info.game_port,
+                        game_info.query_port,
+                        game_info.lobby
+                    )
+                }
             }
         }
-    }
+    } 
+  
 
     // Common style for all buttons on the screen
     let button_node = Node {
