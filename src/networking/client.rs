@@ -129,12 +129,6 @@ pub fn esc_to_disconnect(
 
 /// Spawn a client that connects to the server
 fn spawn_client(mut commands: Commands, mut client_startup: ResMut<ClientStartupResources>) -> Result {
-    let auth = Authentication::Manual {
-        server_addr: SERVER_ADDR,
-        client_id: 1,
-        private_key: Key::default(),
-        protocol_id: 0,
-    };
     commands
         .spawn((
             Name::new("Client"),
@@ -280,7 +274,7 @@ fn client_connect(
     };
 
     // Connect to the server using standard udp
-    commands.entity(client).try_remove::<CrossbeamIo>().try_remove::<SteamClientIo>().insert((
+    commands.entity(client).try_remove::<CrossbeamIo>().try_remove::<SteamClientIo>().try_remove::<UdpIo>().try_remove::<NetcodeClient>().insert((
         Link::new(None),
         UdpIo::default(), 
         NetcodeClient::new(auth, NetcodeConfig::default())?,
