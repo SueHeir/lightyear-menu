@@ -210,6 +210,14 @@ fn client_connect(
     
     let client = client_q.single_inner().ok().unwrap();
 
+    commands.entity(client).try_remove::<CrossbeamIo>()
+        .try_remove::<SteamClientIo>()
+        .try_remove::<UdpIo>()
+        .try_remove::<NetcodeClient>()
+        .try_remove::<Linked>()
+        .try_remove::<Link>()
+        .try_remove::<PingManager>();
+
     if client_config.seperate_mode {
 
         let auth = Authentication::Manual {
@@ -220,7 +228,7 @@ fn client_connect(
         };
        
 
-        commands.entity(client).try_remove::<UdpIo>().try_remove::<SteamClientIo>().insert((
+        commands.entity(client).insert((
            PingManager::new(PingConfig {
                 ping_interval: Duration::default(),
             }),
@@ -251,7 +259,7 @@ fn client_connect(
             protocol_id: 0,
         };
 
-        commands.entity(client).try_remove::<UdpIo>().try_remove::<CrossbeamIo>().insert((
+        commands.entity(client).insert((
             NetcodeClient::new(auth, NetcodeConfig::default())?,
             SteamClientIo { target: ConnectTarget::Peer { steam_id: client_config.steam_connect_to.unwrap(), virtual_port: 4001 }, config: SessionConfig::default() },
             Link::new(None), // This is the link to the server, which will be established when the client connects
@@ -274,7 +282,7 @@ fn client_connect(
     };
 
     // Connect to the server using standard udp
-    commands.entity(client).try_remove::<CrossbeamIo>().try_remove::<SteamClientIo>().try_remove::<UdpIo>().try_remove::<NetcodeClient>().insert((
+    commands.entity(client).insert((
         Link::new(None),
         UdpIo::default(), 
         NetcodeClient::new(auth, NetcodeConfig::default())?,
