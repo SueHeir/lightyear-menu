@@ -301,11 +301,10 @@ fn client_accepts_join_game(
 
                 game_state.set(GameState::Game);
                 menu_state.set(MenuState::Disabled);
-                multiplayer_state.set(MultiplayerState::Client)
+                multiplayer_state.set(MultiplayerState::Client);
+                client_startup.steam_accept_join_game_request = None;
             }
         }
-
-        client_startup.steam_accept_join_game_request = None;
     }
 
 }
