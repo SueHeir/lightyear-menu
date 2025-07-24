@@ -47,7 +47,7 @@ impl Plugin for ExampleClientPlugin {
             steam_accept_join_game_request: None,
         });
 
-        app.add_systems(Startup, spawn_client);
+        app.add_systems(OnEnter(GameState::Menu), setup_steam_callbacks);
         app.add_crossbeam_event(self.server_receive_commands.clone().unwrap());
 
 
@@ -133,8 +133,7 @@ pub fn esc_to_disconnect(
 }
 
 
-/// Spawn a client that connects to the server
-fn spawn_client(mut commands: Commands, mut client_startup: ResMut<ClientStartupResources>,  steam_works: Option<Res<SteamworksClient>>) -> Result {
+fn setup_steam_callbacks(mut commands: Commands, mut client_startup: ResMut<ClientStartupResources>,  steam_works: Option<Res<SteamworksClient>>) -> Result {
 
 
    

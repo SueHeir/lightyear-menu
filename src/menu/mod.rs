@@ -283,7 +283,7 @@ fn menu_action(
 }
 
 
-//Non menu actions that only happen in the menu
+//Non-menu actions that only happen in the menu
 
 fn client_accepts_join_game(
     mut client_startup: ResMut<ClientStartupResources>,
