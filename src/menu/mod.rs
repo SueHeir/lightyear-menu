@@ -304,6 +304,8 @@ fn client_accepts_join_game(
                 multiplayer_state.set(MultiplayerState::Client)
             }
         }
+
+        client_startup.steam_accept_join_game_request = None;
     }
 
 }
