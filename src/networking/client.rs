@@ -129,10 +129,10 @@ pub fn esc_to_disconnect(
 
 /// Spawn a client that connects to the server
 fn spawn_client(mut commands: Commands, mut client_startup: ResMut<ClientStartupResources>) -> Result {
-    commands
-        .spawn((
-            Name::new("Client"),
-            Client::default(),
+    // commands
+    //     .spawn((
+    //         Name::new("Client"),
+    //         Client::default(),
             
 
             //Example CrossbeamIo Client
@@ -147,7 +147,7 @@ fn spawn_client(mut commands: Commands, mut client_startup: ResMut<ClientStartup
             // crossbeam_client,
             // TestHelper::default(),
             // PredictionManager::default(),
-        ));
+        // ));
     Ok(())
 }
 
@@ -208,15 +208,21 @@ fn client_connect(
     client_config: Res<ClientConfigInfo>, 
     mut client_startup: ResMut<ClientStartupResources>) -> Result {
     
-    let client = client_q.single_inner().ok().unwrap();
+    // let client = client_q.single_inner().ok().unwrap();
 
-    commands.entity(client).try_remove::<CrossbeamIo>()
-        .try_remove::<SteamClientIo>()
-        .try_remove::<UdpIo>()
-        .try_remove::<NetcodeClient>()
-        .try_remove::<Linked>()
-        .try_remove::<Link>()
-        .try_remove::<PingManager>();
+    // commands.entity(client).try_remove::<CrossbeamIo>()
+    //     .try_remove::<SteamClientIo>()
+    //     .try_remove::<UdpIo>()
+    //     .try_remove::<NetcodeClient>()
+    //     .try_remove::<Linked>()
+    //     .try_remove::<Link>()
+    //     .try_remove::<PingManager>();
+
+    for e in client_q.iter() {
+        commands.entity(e).try_despawn();
+    }
+
+    let client = commands.spawn( (Name::new("Client"), Client::default())).id();
 
     if client_config.seperate_mode {
 
