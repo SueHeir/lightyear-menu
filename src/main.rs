@@ -17,7 +17,7 @@ use lightyear::crossbeam::CrossbeamIo;
 // use menu::MenuPlugin;
 use networking::{server::ExampleServerPlugin, shared::SharedPlugin, NetworkingPlugin};
 use clap::{Parser, Subcommand, ValueEnum};
-use steamworks::SingleClient;
+use steamworks::{LobbyId, SingleClient};
 use sync_cell::SyncCell;
 use tracing::Level;
 
@@ -52,7 +52,7 @@ struct ClientConfigInfo {
     address: String,
     port: String,
     seperate_mode: bool,
-    steam_connect_to: Option<SteamId>,
+    steam_connect_to: Option<(SteamId, LobbyId)>,
 }
 
 

@@ -6,6 +6,7 @@ use bevy_simple_text_input::{
     TextInputValue,
 };
 use lightyear::prelude::{steamworks::FriendFlags, SteamId, SteamworksClient};
+use steamworks::LobbyId;
 
 // use crate::{networking::SteamworksResource, GameCleanUp, MultiplayerState};
 
@@ -84,7 +85,7 @@ enum MenuButtonAction {
     SeperateAndJoin,
     JoinServerScreen,
     MainMenu,
-    JoinSteamFriend(SteamId),
+    JoinSteamFriend((SteamId, LobbyId)),
     JoinServer,
     Quit,
 }
@@ -246,9 +247,9 @@ fn menu_action(
                 MenuButtonAction::MainMenu => {
                     menu_state.set(MenuState::Main);
                 }
-                MenuButtonAction::JoinSteamFriend(id) => {
+                MenuButtonAction::JoinSteamFriend((id, lobby_id)) => {
                     
-                    client_setup_info.steam_connect_to = Some(*id);
+                    client_setup_info.steam_connect_to = Some((*id, *lobby_id));
 
                     game_state.set(GameState::Game);
                     menu_state.set(MenuState::Disabled);
@@ -285,8 +286,8 @@ fn join_server_menu_setup(mut commands: Commands, mut steamworks: Option<ResMut<
         .0.friends().get_friends(FriendFlags::all()).iter()
         {
             if let Some(game_info) = friend.game_played() {
-                if game_info.game.app_id().0 == 480 {
-                    steam_friends.push((friend.name(), friend.id()));
+                if game_info.game.app_id().0 == 480 && game_info.lobby.raw() != 0 {
+                    steam_friends.push((friend.name(), friend.id(), game_info.lobby));
                     println!(
                         "{:?} {:?} {:?} {:?} {:?} {:?}",
                         friend.name(),
@@ -347,13 +348,13 @@ fn join_server_menu_setup(mut commands: Commands, mut steamworks: Option<ResMut<
                     })),
                 ))
                 .with_children(|parent| {
-                    for (friend, id) in steam_friends {
+                    for (friend, id, lobby) in steam_friends {
                         parent
                             .spawn((
                                 Button,
                                 button_node.clone(),
                                 BackgroundColor(NORMAL_BUTTON),
-                                MenuButtonAction::JoinSteamFriend(id),
+                                MenuButtonAction::JoinSteamFriend((id, lobby)),
                             ))
                             .with_children(|parent| {
                                 parent.spawn((

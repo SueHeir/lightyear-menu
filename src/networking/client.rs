@@ -5,6 +5,7 @@ use crate::{ClientCommands, ClientConfigInfo, GameState, MultiplayerState, Serve
 use bevy::prelude::*;
 use lightyear::crossbeam::CrossbeamIo;
 use parking_lot::Mutex;
+use steamworks::LobbyId;
 use core::net::Ipv4Addr;
 use core::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
@@ -207,7 +208,8 @@ fn client_connect(
     mut commands: Commands, 
     client_q: Query<Entity, With<Client>>,
     client_config: Res<ClientConfigInfo>, 
-    mut client_startup: ResMut<ClientStartupResources>) -> Result {
+    mut client_startup: ResMut<ClientStartupResources>,
+    steam_works: Option<Res<SteamworksClient>>) -> Result {
     
     // let client = client_q.single_inner().ok().unwrap();
 
@@ -268,10 +270,25 @@ fn client_connect(
 
         commands.entity(client).insert((
             NetcodeClient::new(auth, NetcodeConfig::default())?,
-            SteamClientIo { target: ConnectTarget::Peer { steam_id: client_config.steam_connect_to.unwrap(), virtual_port: 4001 }, config: SessionConfig::default() },
-            RemoteId(Steam(client_config.steam_connect_to.unwrap().raw())),
+            SteamClientIo { target: ConnectTarget::Peer { steam_id: client_config.steam_connect_to.unwrap().0, virtual_port: 4001 }, config: SessionConfig::default() },
+            RemoteId(Steam(client_config.steam_connect_to.unwrap().0.raw())),
             Link::new(None), // This is the link to the server, which will be established when the client connects
         ));
+
+        if let Some(steam_work) = steam_works {
+            steam_work.matchmaking().join_lobby(client_config.steam_connect_to.unwrap().1, 
+            |result: Result<LobbyId, ()>| {
+                    match result {
+                        Ok(lobby_id) => {
+                            println!("{:?}", lobby_id);
+                            // Do something with the LobbyId, like joining it, setting metadata, etc.
+                        }
+                        Err(e) => {
+                            eprintln!("Error joining lobby: {:?}", e);
+                        }
+                    }
+                },);
+        }
 
 
 

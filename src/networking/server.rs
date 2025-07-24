@@ -25,6 +25,7 @@ use lightyear::prelude::steamworks::SingleClient;
 use lightyear::prelude::*;
 use parking_lot::lock_api::RwLock;
 use parking_lot::Mutex;
+use steamworks::LobbyId;
 use sync_cell::SyncCell;
 use crate::MultiplayerState;
 
@@ -36,6 +37,7 @@ pub struct ServerCommandSender {
 #[derive(Resource)]
 pub struct ServerStartupResources{
     pub server_crossbeam: Option<CrossbeamIo>,
+    pub steam_lobby_id: Option<Arc<parking_lot::lock_api::Mutex<parking_lot::RawMutex, Option<LobbyId>>>>,
 }
 
 #[derive(Resource)]
@@ -88,6 +90,7 @@ impl Plugin for ExampleServerPlugin {
 
         app.insert_resource(ServerStartupResources {
             server_crossbeam: self.server_crossbeam.clone(),
+            steam_lobby_id: None,
         });
 
         if self.steam.is_some() && self.wrapped_single_client.is_some() {
@@ -150,6 +153,7 @@ fn steam_callbacks(
     // This system is responsible for running the Steamworks callbacks
     // It should be run every frame to ensure that the Steamworks API works correctly
     steam.steam.lock().run_callbacks();
+
 }
 
 /// Whenever a new client connects to the server, a new entity will get spawned with
@@ -171,7 +175,7 @@ fn handle_new_client(trigger: Trigger<OnAdd, Connected>, mut commands: Commands)
 }
 
 
-pub fn start_server(mut commands: Commands, server_q: Query<Entity, With<Server>>, server_startup: Res<ServerStartupResources>) {
+pub fn start_server(mut commands: Commands, server_q: Query<Entity, With<Server>>, mut server_startup: ResMut<ServerStartupResources>, steam_works: Option<Res<SteamworksClient>>) {
 
     if let Some(server) = server_q.iter().next() {
         commands.trigger_targets(Start, server);
@@ -190,6 +194,30 @@ pub fn start_server(mut commands: Commands, server_q: Query<Entity, With<Server>
             entity.insert(Linked);
             entity.insert(server_crossbeam.clone());
         } 
+
+        if let Some(steam_work) = steam_works {
+            
+            let shared_data: Arc<parking_lot::lock_api::Mutex<parking_lot::RawMutex, Option<LobbyId>>> = Arc::new(Mutex::new(None));
+            let cloned_data = shared_data.clone();
+            steam_work.matchmaking().create_lobby(steamworks::LobbyType::FriendsOnly, 10, 
+              move |result: Result<LobbyId, steamworks::SteamError>| {
+                    match result {
+                        Ok(lobby_id) => {
+                            shared_data.clone().lock().replace(lobby_id);
+                            println!("{:?}", lobby_id);
+                            // Do something with the LobbyId, like joining it, setting metadata, etc.
+                        }
+                        Err(e) => {
+                            eprintln!("Error creating lobby: {:?}", e);
+                        }
+                    }
+                },);
+
+            server_startup.steam_lobby_id = Some(cloned_data);
+            info_once!("{:?}", server_startup.steam_lobby_id);
+        }
+
+
 
         info!("Server Started"); 
 
@@ -215,7 +243,8 @@ pub(crate) fn handle_client_commands(
     mut multiplayer_state: ResMut<NextState<MultiplayerState>>,
     mut game_state: ResMut<NextState<GameState>>,
     mut server_q: Query<Entity, With<Server>>,
-
+    mut server_startup: ResMut<ServerStartupResources>,
+    steam_works: Option<Res<SteamworksClient>>
     ) {
 
     for c in  client_commands.read() {
@@ -229,6 +258,21 @@ pub(crate) fn handle_client_commands(
             ClientCommands::StopServer => {
                 info!("Server received StopServer command");
                  if let Some(server) = server_q.iter().next() {
+
+                    if let Some(ref steam_work) = steam_works {
+                        if let Some(lobby_arc) = server_startup.steam_lobby_id.clone() {
+
+                            if let Some(lobby_id) = *lobby_arc.lock() {
+                                steam_work.matchmaking().leave_lobby(lobby_id);
+                            }
+
+                           
+                        }
+                        server_startup.steam_lobby_id = None;
+                       
+                    }
+
+
                     commands.trigger_targets(Unlink { reason: "Stopping Server".to_string()}, server);
                     commands.trigger_targets(Stop, server);
                     
