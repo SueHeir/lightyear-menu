@@ -19,7 +19,7 @@ serde = "*"
 rand = "*"
 tracing = "*"
 tracing-appender = "*"
-lightyear = {git = "https://github.com/cBournhonesque/lightyear.git" ,features = ["udp", "crossbeam", "netcode", "leafwing", "avian2d", "steam"] } #cBournhonesque  , "visualizer" 
+lightyear = {git = "https://github.com/cBournhonesque/lightyear.git" ,features = ["udp", "crossbeam", "netcode", "leafwing", "avian2d", "steam", "interpolation", "prediction", "replication",] } #cBournhonesque  , "visualizer" 
 steamworks = "0.11"
 crossbeam-channel = { version = "0.5.13", features = [] }
 clap = { version = "4.5.4", features = ["derive"] }
@@ -30,4 +30,5 @@ bevy-inspector-egui = "0.31"
 bevy_simple_text_input = "0.11"
 lightyear_core = "0.21.1"
 sync-cell = "0.2.0"
+lightyear_frame_interpolation = "0.22.5"
 

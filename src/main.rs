@@ -11,7 +11,7 @@ use bevy_simple_text_input::TextInputPlugin;
 
 // use iyes_perf_ui::PerfUiPlugin;
 use camera::CameraPlugin;
-use lightyear::{connection::prelude::server, prelude::{server::ServerPlugins, SteamId, SteamworksClient}, steam};
+use lightyear::{connection::prelude::server, prelude::{server::ServerPlugins, InterpolationRegistry, SteamId, SteamworksClient}, steam};
 use lightyear::crossbeam::CrossbeamIo;
 // use lightyear::{client::config::NetcodeConfig, prelude::{client::{Authentication, ClientTransport, IoConfig, NetConfig}, CompressionConfig, Key, SteamworksClient}, transport::LOCAL_SOCKET};
 // use menu::MenuPlugin;
@@ -170,7 +170,7 @@ fn main() {
         tick_duration: Duration::from_secs_f64(1.0 / FIXED_TIMESTEP_HZ),
     });
 
-    server_app.add_plugins(SharedPlugin);
+    server_app.add_plugins(SharedPlugin { show_confirmed: false});
     
     server_app.add_plugins(ExampleServerPlugin { 
         server_crossbeam: Some(crossbeam_server),
@@ -179,6 +179,11 @@ fn main() {
         steam: steam.clone(),
         wrapped_single_client: wrapped_single_client.clone(),
     });
+
+    server_app.add_systems(
+OnEnter(GameState::Menu),
+despawn_screen::<GameCleanUp>,
+    );
 
 
     let cli = Cli::parse();
@@ -229,7 +234,7 @@ fn main() {
             level: Level::INFO,
             // filter: "lightyear_netcode=trace,lightyear_crossbeam=trace".to_string(), //
             ..default() //
-        }))
+        }));
        
 
         //Avian Physics
@@ -237,7 +242,8 @@ fn main() {
         // .insert_resource(Gravity(Vec2::ZERO))
         // .add_plugins(PhysicsDebugPlugin::default())
         //Lightyear Setup
-        .add_plugins(NetworkingPlugin { client_crossbeam: Some(crossbeam_client), 
+        
+        client_app.add_plugins(NetworkingPlugin { client_crossbeam: Some(crossbeam_client), 
             client_sender_commands: Some(client_commands_send.clone()),
             server_receive_commands: Some(server_commands_receive.clone()),
             steam: steam.clone(),
@@ -266,10 +272,10 @@ fn main() {
         .add_plugins(TextInputPlugin) //For IP Address Input
         //Game Setup
         .add_plugins(CameraPlugin)
-        // .add_systems(
-        //     OnEnter(GameState::Menu),
-        //     despawn_screen::<GameCleanUp>,
-        // )
+        .add_systems(
+            OnEnter(GameState::Menu),
+            despawn_screen::<GameCleanUp>,
+        )
         .add_plugins(EguiPlugin { enable_multipass_for_primary_context: true })
         .add_plugins(WorldInspectorPlugin::new())
         .run();

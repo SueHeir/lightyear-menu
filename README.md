@@ -5,6 +5,7 @@ This code stands as a starting point for a multiplayer bevy steam game using the
 
 The menu code follows Bevy's menu example
 
+The actual gameplay is copied from lightyears spaceship demo
 
 # Working Part
 
