@@ -23,6 +23,7 @@ use lightyear::prelude::PeerId::Steam;
 pub struct ClientStartupResources {
     pub client_crossbeam: Option<CrossbeamIo>,
     pub client_sender_commands: Option<crossbeam_channel::Sender<ClientCommands>>,
+    pub steam_accept_join_game_request: Option<Arc<parking_lot::lock_api::Mutex<parking_lot::RawMutex, Option<SteamId>>>>,
     
 }
 pub struct ExampleClientPlugin {
@@ -43,6 +44,7 @@ impl Plugin for ExampleClientPlugin {
         app.insert_resource(ClientStartupResources {
             client_crossbeam: self.client_crossbeam.clone(),
             client_sender_commands: self.client_sender_commands.clone(),
+            steam_accept_join_game_request: None,
         });
 
         app.add_systems(Startup, spawn_client);
@@ -88,6 +90,8 @@ impl Plugin for ExampleClientPlugin {
         app.add_systems(Update, esc_to_disconnect.run_if(
             in_state(MultiplayerState::Client),
         ));
+       
+        
         app.add_systems(
             PreUpdate,
             client_stop_server
@@ -133,12 +137,22 @@ pub fn esc_to_disconnect(
 fn spawn_client(mut commands: Commands, mut client_startup: ResMut<ClientStartupResources>,  steam_works: Option<Res<SteamworksClient>>) -> Result {
 
 
-    if let Some(steam_work) = steam_works {
-        let _lobby_join_callback = steam_work.register_callback(|p: GameLobbyJoinRequested| { // The closure takes a GameLobbyJoinRequested struct as an argument
-        
+   
 
-        println!("{:?}",p.friend_steam_id);
-    });
+    if let Some(steam_work) = steam_works {
+
+
+        let shared_data: Arc<parking_lot::lock_api::Mutex<parking_lot::RawMutex, Option<SteamId>>> = Arc::new(Mutex::new(None));
+        let cloned_data = shared_data.clone();
+
+
+        let _lobby_join_callback = steam_work.register_callback(
+           move |p: GameLobbyJoinRequested| { // The closure takes a GameLobbyJoinRequested struct as an argument
+                shared_data.lock().replace(p.friend_steam_id);
+        });
+
+
+        client_startup.steam_accept_join_game_request = Some(cloned_data);
     }
 
 

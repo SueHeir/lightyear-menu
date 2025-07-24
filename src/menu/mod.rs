@@ -10,7 +10,7 @@ use steamworks::LobbyId;
 
 // use crate::{networking::SteamworksResource, GameCleanUp, MultiplayerState};
 
-use crate::MultiplayerState;
+use crate::{networking::client::ClientStartupResources, MultiplayerState};
 
 use super::{despawn_screen, GameState, TEXT_COLOR};
 
@@ -47,6 +47,10 @@ impl Plugin for MenuPlugin {
                 (menu_action, button_system).run_if(in_state(GameState::Menu)),
             )
             .add_systems(Update, listener.after(TextInputSystem));
+        
+        app.add_systems(Update, client_accepts_join_game.run_if(
+            in_state(MultiplayerState::None).and(in_state(GameState::Menu)),
+        ));
     }
 }
 
@@ -276,6 +280,32 @@ fn menu_action(
             }
         }
     }
+}
+
+
+//Non menu actions that only happen in the menu
+
+fn client_accepts_join_game(
+    mut client_startup: ResMut<ClientStartupResources>,
+    mut menu_state: ResMut<NextState<MenuState>>,
+    mut game_state: ResMut<NextState<GameState>>,
+    mut multiplayer_state: ResMut<NextState<MultiplayerState>>,
+    mut client_setup_info: ResMut<crate::ClientConfigInfo>,) {
+
+    if let Some(temp) = client_startup.steam_accept_join_game_request.clone() {
+        if let Some(guard) = temp.try_lock() {
+            if let Some(steam_id) = *guard {
+
+                client_setup_info.seperate_mode = false;
+                client_setup_info.steam_connect_to = Some((steam_id, LobbyId::from_raw(0)));
+
+                game_state.set(GameState::Game);
+                menu_state.set(MenuState::Disabled);
+                multiplayer_state.set(MultiplayerState::Client)
+            }
+        }
+    }
+
 }
 
 fn join_server_menu_setup(mut commands: Commands, mut steamworks: Option<ResMut<SteamworksClient>>) {//mut steamworks: ResMut<SteamworksResource>
