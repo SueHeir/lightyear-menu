@@ -42,7 +42,7 @@ impl Plugin for NetworkingPlugin {
        
 
         app.add_plugins(SharedPlugin { show_confirmed: true});
-        app.add_plugins(ExampleRendererPlugin);
+       
         
         app.add_plugins(ExampleClientPlugin { client_crossbeam: self.client_crossbeam.clone(), 
             client_sender_commands: self.client_sender_commands.clone(),
@@ -52,43 +52,7 @@ impl Plugin for NetworkingPlugin {
         });
 
 
-        
-        
+         app.add_plugins(ExampleRendererPlugin);
+         
     }
 }
-
-// pub fn clean_up_game_on_client_disconnect(
-//     mut disconnect_event: EventReader<ClientDisconnectEvent>,
-//     mut game_state: ResMut<NextState<GameState>>,
-//     mut multiplayer_state: ResMut<NextState<MultiplayerState>>,
-// ) {
-//     for event in disconnect_event.read() {
-//         println!("{:?}", event.reason);
-
-//         game_state.set(GameState::Menu);
-//         multiplayer_state.set(MultiplayerState::None);
-//     }
-// }
-
-
-
-
-
-// pub fn spawn_server_thread(
-//     mut multiplayer_state: ResMut<NextState<MultiplayerState>>,
-//     mut client_setup_info: ResMut<crate::ClientConfigInfo>,
-//     mut client_config: ResMut<ClientConfig>,
-//     seperate_client_config: Res<SeperateClientConfig>,
-
-//     mut client_commands: ResMut<ClientCommandsSender>,
-
-// ) {
-   
-//     let result =  client_commands.client_commands.send(ClientCommands::StartServer);
-
-//     info!("{:?}", result);
-
-//     client_config.net = seperate_client_config.client_config.clone();
-
-//     client_setup_info.seperate_mode = true;
-// }

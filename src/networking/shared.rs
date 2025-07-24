@@ -43,7 +43,9 @@ impl Plugin for SharedPlugin {
                 .build()
                 // disable Sync as it is handled by lightyear_avian
                 .disable::<SyncPlugin>(),
-        );
+            );
+            // .add_plugins(SyncPlugin::new(PostUpdate));
+
         app.insert_resource(Gravity(Vec2::ZERO));
 
         // our systems run in FixedUpdate, avian's systems run in FixedPostUpdate.
@@ -354,28 +356,12 @@ pub(crate) fn process_collisions(
 }
 
 
+
+
+
+
 #[derive(Resource)]
 struct CrossbeamEventReceiver<T: Event>(Receiver<T>);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 pub trait CrossbeamEventApp {
     fn add_crossbeam_event<T: Event>(&mut self, receiver: Receiver<T>) -> &mut Self;

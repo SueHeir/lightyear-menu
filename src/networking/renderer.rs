@@ -66,7 +66,7 @@ impl Plugin for ExampleRendererPlugin {
 
         // observers that add VisualInterpolationStatus components to entities which receive
         // a Position
-        app.add_observer(add_visual_interpolation_components);
+        // app.add_observer(add_visual_interpolation_components);
     }
 }
 

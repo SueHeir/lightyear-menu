@@ -50,7 +50,6 @@ impl Plugin for ExampleClientPlugin {
             steam_accept_join_game_request: None,
         });
 
-        app.add_systems(Startup, temp_client);
         app.add_systems(OnEnter(GameState::Menu), setup_steam_callbacks);
         app.add_crossbeam_event(self.server_receive_commands.clone().unwrap());
 
@@ -149,16 +148,6 @@ pub fn esc_to_disconnect(
             }
         }
     }
-}
-fn temp_client(mut commands: Commands) {
-
-    let client = commands.spawn( (
-            Name::new("Client"), 
-            Client::default(),
-            ReplicationReceiver::default(),
-            PredictionManager::default(),
-            InterpolationManager::default(),
-    )).id();
 }
 
 fn setup_steam_callbacks(mut commands: Commands, mut client_startup: ResMut<ClientStartupResources>,  steam_works: Option<Res<SteamworksClient>>) -> Result {
@@ -301,15 +290,15 @@ fn client_connect(
         //     .unwrap();
         // let steam_client = steam_client.read();
         // let _ = steam_client.connect_to(client_config.steam_connect_to.unwrap());
-        let auth = Authentication::Manual {
-            server_addr: SERVER_ADDR,
-            client_id: rand::random::<u64>(),
-            private_key: Key::default(),
-            protocol_id: 0,
-        };
+        // let auth = Authentication::Manual {
+        //     server_addr: SERVER_ADDR,
+        //     client_id: client_config.steam_connect_to.unwrap().0.raw(),
+        //     private_key: Key::default(),
+        //     protocol_id: 0,
+        // };
 
         commands.entity(client).insert((
-            NetcodeClient::new(auth, NetcodeConfig::default())?,
+            // NetcodeClient::new(auth, NetcodeConfig::default())?,
             SteamClientIo { target: ConnectTarget::Peer { steam_id: client_config.steam_connect_to.unwrap().0, virtual_port: 4001 }, config: SessionConfig::default() },
             RemoteId(Steam(client_config.steam_connect_to.unwrap().0.raw())),
             Link::new(None), // This is the link to the server, which will be established when the client connects

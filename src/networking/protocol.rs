@@ -1,5 +1,6 @@
 use avian2d::prelude::*;
 use bevy::prelude::*;
+use lightyear::prediction::correction::CorrectionPolicy;
 use core::time::Duration;
 use leafwing_input_manager::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -218,5 +219,17 @@ impl Plugin for ProtocolPlugin {
             .add_prediction(PredictionMode::Full)
             .add_linear_interpolation_fn()
             .add_linear_correction_fn();
+
+        // do not replicate Transform but make sure to register an interpolation function
+        // for it so that we can do visual interpolation
+        // (another option would be to replicate transform and not use Position/Rotation at all)
+        app.world_mut()
+            .resource_mut::<InterpolationRegistry>()
+            .set_interpolation::<Transform>(TransformLinearInterpolation::lerp);
+        app.world_mut()
+            .resource_mut::<InterpolationRegistry>()
+            .set_interpolation_mode::<Transform>(InterpolationMode::None);
+
+        // app.register_component::<Transform>().add_interpolation(InterpolationMode::Full);
     }
 }
