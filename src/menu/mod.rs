@@ -248,7 +248,7 @@ fn menu_action(
                     menu_state.set(MenuState::Main);
                 }
                 MenuButtonAction::JoinSteamFriend((id, lobby_id)) => {
-                    
+                    client_setup_info.seperate_mode = false;
                     client_setup_info.steam_connect_to = Some((*id, *lobby_id));
 
                     game_state.set(GameState::Game);

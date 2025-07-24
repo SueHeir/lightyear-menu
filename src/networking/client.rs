@@ -5,7 +5,7 @@ use crate::{ClientCommands, ClientConfigInfo, GameState, MultiplayerState, Serve
 use bevy::prelude::*;
 use lightyear::crossbeam::CrossbeamIo;
 use parking_lot::Mutex;
-use steamworks::LobbyId;
+use steamworks::{Callback, GameLobbyJoinRequested, LobbyId};
 use core::net::Ipv4Addr;
 use core::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
@@ -130,26 +130,20 @@ pub fn esc_to_disconnect(
 
 
 /// Spawn a client that connects to the server
-fn spawn_client(mut commands: Commands, mut client_startup: ResMut<ClientStartupResources>) -> Result {
-    // commands
-    //     .spawn((
-    //         Name::new("Client"),
-    //         Client::default(),
-            
+fn spawn_client(mut commands: Commands, mut client_startup: ResMut<ClientStartupResources>,  steam_works: Option<Res<SteamworksClient>>) -> Result {
 
-            //Example CrossbeamIo Client
-            // Client::default(),
-            // // Send pings every frame, so that the Acks are sent every frame
-            // PingManager::new(PingConfig {
-            //     ping_interval: Duration::default(),
-            // }),
-            // ReplicationSender::default(),
-            // ReplicationReceiver::default(),
-            // NetcodeClient::new(auth, NetcodeConfig::default()).unwrap(),
-            // crossbeam_client,
-            // TestHelper::default(),
-            // PredictionManager::default(),
-        // ));
+
+    if let Some(steam_work) = steam_works {
+        let _lobby_join_callback = steam_work.register_callback(|p: GameLobbyJoinRequested| { // The closure takes a GameLobbyJoinRequested struct as an argument
+        
+
+        println!("{:?}",p.friend_steam_id);
+    });
+    }
+
+
+
+
     Ok(())
 }
 
@@ -275,20 +269,20 @@ fn client_connect(
             Link::new(None), // This is the link to the server, which will be established when the client connects
         ));
 
-        if let Some(steam_work) = steam_works {
-            steam_work.matchmaking().join_lobby(client_config.steam_connect_to.unwrap().1, 
-            |result: Result<LobbyId, ()>| {
-                    match result {
-                        Ok(lobby_id) => {
-                            println!("{:?}", lobby_id);
-                            // Do something with the LobbyId, like joining it, setting metadata, etc.
-                        }
-                        Err(e) => {
-                            eprintln!("Error joining lobby: {:?}", e);
-                        }
-                    }
-                },);
-        }
+        // if let Some(steam_work) = steam_works {
+        //     steam_work.matchmaking().join_lobby(client_config.steam_connect_to.unwrap().1, 
+        //     |result: Result<LobbyId, ()>| {
+        //             match result {
+        //                 Ok(lobby_id) => {
+        //                     println!("{:?}", lobby_id);
+        //                     // Do something with the LobbyId, like joining it, setting metadata, etc.
+        //                 }
+        //                 Err(e) => {
+        //                     eprintln!("Error joining lobby: {:?}", e);
+        //                 }
+        //             }
+        //         },);
+        // }
 
 
 
