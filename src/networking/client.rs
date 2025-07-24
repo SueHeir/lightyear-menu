@@ -12,6 +12,7 @@ use std::time::Duration;
 use lightyear::netcode::Key;
 use lightyear::prelude::client::*;
 use lightyear::prelude::*;
+use lightyear::prelude::PeerId::Steam;
 // use bevy::ecs::schedule::common_conditions::any_of;
 // use bevy::ecs::schedule::common_conditions::in_states;
 
@@ -268,6 +269,7 @@ fn client_connect(
         commands.entity(client).insert((
             NetcodeClient::new(auth, NetcodeConfig::default())?,
             SteamClientIo { target: ConnectTarget::Peer { steam_id: client_config.steam_connect_to.unwrap(), virtual_port: 4001 }, config: SessionConfig::default() },
+            RemoteId(Steam(client_config.steam_connect_to.unwrap().raw())),
             Link::new(None), // This is the link to the server, which will be established when the client connects
         ));
 
