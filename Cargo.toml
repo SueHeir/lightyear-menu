@@ -19,7 +19,7 @@ serde = "*"
 rand = "*"
 tracing = "*"
 tracing-appender = "*"
-lightyear = {git = "https://github.com/cBournhonesque/lightyear.git" ,features = [
+lightyear = {git = "https://github.com/SueHeir/lightyear.git" ,features = [
     "udp", 
     "crossbeam", 
     "netcode", 
@@ -28,8 +28,8 @@ lightyear = {git = "https://github.com/cBournhonesque/lightyear.git" ,features =
     "steam", 
     "interpolation", 
     "prediction", 
-    "replication"
-] }
+    "replication",
+] } #cBournhonesque
 steamworks = "0.11"
 crossbeam-channel = { version = "0.5.13", features = [] }
 clap = { version = "4.5.4", features = ["derive"] }

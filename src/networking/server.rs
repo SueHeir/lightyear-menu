@@ -92,7 +92,7 @@ impl Plugin for ExampleServerPlugin {
         if self.steam.is_some() {
             app.world_mut().entities_and_commands().1.entity(server_entity).insert(SteamServerIo {
                 target: ListenTarget::Peer { virtual_port: 4001 },
-                config: SessionConfig::default(),
+                config: SessionConfig { timeout_connected: Duration::from_secs(10), timeout_initial: Duration::from_secs(10), ..Default::default()},
             });
         }
 
@@ -103,7 +103,7 @@ impl Plugin for ExampleServerPlugin {
 
         if self.steam.is_some() && self.wrapped_single_client.is_some() {
 
-            info!("Using Steamworks for server connection");
+            info!("Setting up Steamworks for server connection");
 
             let steam = self.steam.clone().unwrap();
             let wrapped_single_client = self.wrapped_single_client.clone().unwrap();

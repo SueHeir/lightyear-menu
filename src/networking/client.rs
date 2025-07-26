@@ -59,7 +59,7 @@ impl Plugin for ExampleClientPlugin {
 
         if self.steam.is_some() && self.wrapped_single_client.is_some() {
 
-            info!("Using Steamworks for server connection");
+            info!("Setting up Steamworks for client connection");
 
             let steam = self.steam.clone().unwrap();
             let wrapped_single_client = self.wrapped_single_client.clone().unwrap();
@@ -290,16 +290,16 @@ fn client_connect(
         //     .unwrap();
         // let steam_client = steam_client.read();
         // let _ = steam_client.connect_to(client_config.steam_connect_to.unwrap());
-        // let auth = Authentication::Manual {
-        //     server_addr: SERVER_ADDR,
-        //     client_id: client_config.steam_connect_to.unwrap().0.raw(),
-        //     private_key: Key::default(),
-        //     protocol_id: 0,
-        // };
+        let auth = Authentication::Manual {
+            server_addr: SERVER_ADDR,
+            client_id: client_config.steam_connect_to.unwrap().0.raw(),
+            private_key: Key::default(),
+            protocol_id: 0,
+        };
 
         commands.entity(client).insert((
-            // NetcodeClient::new(auth, NetcodeConfig::default())?,
-            SteamClientIo { target: ConnectTarget::Peer { steam_id: client_config.steam_connect_to.unwrap().0, virtual_port: 4001 }, config: SessionConfig::default() },
+            // NetcodeClient::new(auth, NetcodeConfig { client_timeout_secs: 10, ..Default::default()})?,
+            SteamClientIo { target: ConnectTarget::Peer { steam_id: client_config.steam_connect_to.unwrap().0, virtual_port: 4001 }, config: SessionConfig { timeout_initial: Duration::from_secs(10), timeout_connected: Duration::from_secs(10), ..Default::default()} },
             // RemoteId(Steam(client_config.steam_connect_to.unwrap().0.raw())),
             Link::new(None), // This is the link to the server, which will be established when the client connects
         ));

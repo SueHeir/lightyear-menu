@@ -232,7 +232,7 @@ despawn_screen::<GameCleanUp>,
         }).set(LogPlugin {
             // custom_layer,
             level: Level::INFO,
-            // filter: "lightyear_netcode=trace,lightyear_crossbeam=trace".to_string(), //
+            filter: "lightyear_steam=trace,".to_string(), //
             ..default() //
         }));
        
@@ -293,12 +293,12 @@ pub fn new_headless_app() -> App {
     let mut app = App::new();
     app.add_plugins(
         DefaultPlugins
-            // .set(LogPlugin {
-            //     // custom_layer,
-            //     level: Level::DEBUG,
-            //     filter: "lightyear_crossbeam=trace,lightyear_netcode=trace".to_string(), //
-            //     ..default() //lightyear::client::prediction::rollback=debug,lightyear::server::prediction=debug
-            // })
+            .set(LogPlugin {
+                // custom_layer,
+                level: Level::INFO,
+                filter: "lightyear_steam=trace,".to_string(), //
+                ..default() //lightyear::client::prediction::rollback=debug,lightyear::server::prediction=debug
+            })
             .set(ImagePlugin::default_nearest())
             // Not strictly necessary, as the inclusion of ScheduleRunnerPlugin below
             // replaces the bevy_winit app runner and so a window is never created.
