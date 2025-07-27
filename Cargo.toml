@@ -19,7 +19,7 @@ serde = "*"
 rand = "*"
 tracing = "*"
 tracing-appender = "*"
-lightyear = {git = "https://github.com/SueHeir/lightyear.git" ,features = [
+lightyear = {git = "https://github.com/cBournhonesque/lightyear.git" ,features = [
     "udp", 
     "crossbeam", 
     "netcode", 
