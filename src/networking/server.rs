@@ -53,6 +53,7 @@ pub struct ServerCommandSender {
 
 #[derive(Resource)]
 pub struct ServerStartupResources{
+    pub just_server: bool,
     pub server_crossbeam: Option<CrossbeamIo>,
     pub steam_lobby_id: Option<Arc<parking_lot::lock_api::Mutex<parking_lot::RawMutex, Option<LobbyId>>>>,
 }
@@ -64,6 +65,7 @@ pub struct SteamSingleClient {
 
 
 pub struct ExampleServerPlugin {
+    pub just_server: bool,
     pub server_crossbeam: Option<CrossbeamIo>,
     pub client_recieve_commands:   Option<Receiver<ClientCommands>>,
     pub server_send_commands:  Option<Sender<ServerCommands>>,
@@ -99,6 +101,7 @@ impl Plugin for ExampleServerPlugin {
         app.insert_resource(ServerStartupResources {
             server_crossbeam: self.server_crossbeam.clone(),
             steam_lobby_id: None,
+            just_server: self.just_server,
         });
 
         if self.steam.is_some() && self.wrapped_single_client.is_some() {
@@ -170,9 +173,18 @@ impl Plugin for ExampleServerPlugin {
                 .run_if(on_event::<BulletHitEvent>)
                 .after(shared::process_collisions),
         );
+
+        app.add_systems(Update, talk_to_me);
     }
 }
 
+
+fn talk_to_me( server_q: Query<(Entity, Has<RemoteId>, Has<ReplicationSender>), With<Link>>) {
+
+    // for (e, remote, replication) in server_q {
+    //     info!(" remote:{} rep:{}", remote, replication);
+    // }
+}
 
 
 fn steam_callbacks(
@@ -195,20 +207,25 @@ pub fn start_server(mut commands: Commands, server_q: Query<Entity, With<Server>
     if let Some(server) = server_q.iter().next() {
         commands.trigger_targets(Start, server);
 
-        if let Some(server_crossbeam) = &server_startup.server_crossbeam {
-            // You need to provide a valid client_id here. For demonstration, we'll use 12345.
-            info!("Add a Linked connection for host client to server");
-            
-            let mut entity = commands.spawn(LinkOf {
-                server: server,
-            });
-            entity.insert(PingManager::new(PingConfig {
-                ping_interval: Duration::default(),
-            }));
-            entity.insert(Link::new(None));
-            entity.insert(Linked);
-            entity.insert(server_crossbeam.clone());
-        } 
+
+        if !server_startup.just_server {
+             if let Some(server_crossbeam) = &server_startup.server_crossbeam {
+                // You need to provide a valid client_id here. For demonstration, we'll use 12345.
+                info!("Add a Linked connection for host client to server");
+                
+                let mut entity = commands.spawn(LinkOf {
+                    server: server,
+                });
+                entity.insert(PingManager::new(PingConfig {
+                    ping_interval: Duration::default(),
+                }));
+                entity.insert(Link::new(None));
+                entity.insert(Linked);
+                entity.insert(server_crossbeam.clone());
+                entity.insert(RemoteId(PeerId::Netcode(1)));
+            } 
+        }
+      
 
         if let Some(steam_work) = steam_works {
             
@@ -341,7 +358,8 @@ fn init(mut commands: Commands) {
 }
 
 /// Add the ReplicationSender component to new clients
-pub(crate) fn handle_new_client(trigger: Trigger<OnAdd, LinkOf>, mut commands: Commands) {
+pub(crate) fn handle_new_client(trigger: Trigger<OnAdd, ClientOf>, mut commands: Commands) {
+    info!("remote id added, adding replication sender {}", trigger.target());
     commands
         .entity(trigger.target())
         .insert(ReplicationSender::new(

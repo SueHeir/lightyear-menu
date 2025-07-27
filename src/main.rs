@@ -171,31 +171,44 @@ fn main() {
     });
 
     server_app.add_plugins(SharedPlugin { show_confirmed: false});
-    
-    server_app.add_plugins(ExampleServerPlugin { 
-        server_crossbeam: Some(crossbeam_server),
-        client_recieve_commands:  Some(client_commands_receive),
-        server_send_commands:  Some(server_commands_send),
-        steam: steam.clone(),
-        wrapped_single_client: wrapped_single_client.clone(),
-    });
 
     server_app.add_systems(
 OnEnter(GameState::Menu),
 despawn_screen::<GameCleanUp>,
     );
+    
+   
+
+    
 
 
     let cli = Cli::parse();
 
     match cli.mode {
         Mode::Full => { //Client here does spawn server in background
+
+            server_app.add_plugins(ExampleServerPlugin { 
+                just_server: false,
+                server_crossbeam: Some(crossbeam_server),
+                client_recieve_commands:  Some(client_commands_receive),
+                server_send_commands:  Some(server_commands_send),
+                steam: steam.clone(),
+                wrapped_single_client: wrapped_single_client.clone(),
+            });
             let mut send_app = SendApp(server_app);
             std::thread::spawn(move || send_app.run());
             info!("Spawned Server as background task (server is not started yet");
         },
         Mode::Client => {}, //Client here does not spawn server in background
         Mode::Server => {
+            server_app.add_plugins(ExampleServerPlugin { 
+                just_server: true,
+                server_crossbeam: Some(crossbeam_server),
+                client_recieve_commands:  Some(client_commands_receive),
+                server_send_commands:  Some(server_commands_send),
+                steam: steam.clone(),
+                wrapped_single_client: wrapped_single_client.clone(),
+            });
             info!("Started Server as main task (server is auto started)");
             let game_state = GameState::Game;
             server_app.insert_state(game_state);
