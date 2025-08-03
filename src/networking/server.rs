@@ -6,8 +6,6 @@
 //! - read inputs from the clients and move the player entities accordingly
 //!
 //! Lightyear will handle the replication of entities automatically if you add a `Replicate` component to them.
-use std::net::Ipv4Addr;
-use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -22,29 +20,24 @@ use crate::networking::protocol::Weapon;
 use crate::networking::shared;
 use crate::networking::shared::*;
 use crate::ClientCommands;
-use crate::GameCleanUp;
 use crate::GameState;
+use crate::MultiplayerState;
 use crate::ServerCommands;
 use avian2d::prelude::Position;
 use bevy::color::palettes::css;
 use bevy::prelude::*;
 use bevy::time::common_conditions::on_timer;
+use crossbeam_channel::Receiver;
+use crossbeam_channel::Sender;
 use leafwing_input_manager::prelude::ActionState;
 use lightyear::connection::client::PeerMetadata;
 use lightyear::crossbeam::CrossbeamIo;
-use crossbeam_channel::Sender;
-use crossbeam_channel::Receiver;
 use lightyear::link::Unlink;
 use lightyear::prelude::server::*;
-use lightyear::prelude::steamworks::SingleClient;
 use lightyear::prelude::*;
-use parking_lot::lock_api::RwLock;
 use parking_lot::Mutex;
-use steamworks::LobbyId;
-use sync_cell::SyncCell;
-use crate::MultiplayerState;
-
 use std::f32::consts::TAU;
+use steamworks::LobbyId;
 
 #[derive(Resource)]
 pub struct ServerCommandSender {
@@ -52,10 +45,11 @@ pub struct ServerCommandSender {
 }
 
 #[derive(Resource)]
-pub struct ServerStartupResources{
+pub struct ServerStartupResources {
     pub just_server: bool,
     pub server_crossbeam: Option<CrossbeamIo>,
-    pub steam_lobby_id: Option<Arc<parking_lot::lock_api::Mutex<parking_lot::RawMutex, Option<LobbyId>>>>,
+    pub steam_lobby_id:
+        Option<Arc<parking_lot::lock_api::Mutex<parking_lot::RawMutex, Option<LobbyId>>>>,
 }
 
 #[derive(Resource)]
@@ -63,16 +57,14 @@ pub struct SteamSingleClient {
     pub steam: Arc<Mutex<lightyear::prelude::steamworks::SingleClient>>,
 }
 
-
 pub struct ExampleServerPlugin {
     pub just_server: bool,
     pub server_crossbeam: Option<CrossbeamIo>,
-    pub client_recieve_commands:   Option<Receiver<ClientCommands>>,
-    pub server_send_commands:  Option<Sender<ServerCommands>>,
+    pub client_recieve_commands: Option<Receiver<ClientCommands>>,
+    pub server_send_commands: Option<Sender<ServerCommands>>,
     pub steam: Option<lightyear::prelude::steamworks::Client>,
     pub wrapped_single_client: Option<Arc<Mutex<lightyear::prelude::steamworks::SingleClient>>>,
 }
-
 
 #[derive(Resource)]
 pub struct Global {
@@ -81,22 +73,15 @@ pub struct Global {
 
 impl Plugin for ExampleServerPlugin {
     fn build(&self, app: &mut App) {
-
         // Create the server immediately
-        let server_entity = app.world_mut().spawn((
-            NetcodeServer::new(NetcodeConfig::default()),
-            LocalAddr(SERVER_ADDR),
-            ServerUdpIo::default(),
-            
-        )).id();
-
-
-        if self.steam.is_some() {
-            app.world_mut().entities_and_commands().1.entity(server_entity).insert(SteamServerIo {
-                target: ListenTarget::Peer { virtual_port: 4001 },
-                config: SessionConfig { timeout_connected: Duration::from_secs(10), timeout_initial: Duration::from_secs(10), ..Default::default()},
-            });
-        }
+        let server_entity = app
+            .world_mut()
+            .spawn((
+                NetcodeServer::new(NetcodeConfig::default()),
+                LocalAddr(SERVER_ADDR),
+                ServerUdpIo::default(),
+            ))
+            .id();
 
         app.insert_resource(ServerStartupResources {
             server_crossbeam: self.server_crossbeam.clone(),
@@ -105,15 +90,12 @@ impl Plugin for ExampleServerPlugin {
         });
 
         if self.steam.is_some() && self.wrapped_single_client.is_some() {
-
             info!("Setting up Steamworks for server connection");
 
             let steam = self.steam.clone().unwrap();
             let wrapped_single_client = self.wrapped_single_client.clone().unwrap();
-            
 
             app.insert_resource(SteamworksClient(steam.clone()));
-
 
             let resource = SteamSingleClient {
                 steam: wrapped_single_client.clone(),
@@ -121,39 +103,33 @@ impl Plugin for ExampleServerPlugin {
             app.insert_resource(resource);
             app.add_systems(
                 PreUpdate,
-                steam_callbacks
-                    .run_if(in_state(MultiplayerState::Server)));
+                steam_callbacks.run_if(in_state(MultiplayerState::Server)),
+            );
 
             // If the server is using Steamworks, we need to add the SteamServerIo component
-            app.world_mut().entity_mut(server_entity).insert(SteamServerIo {
-                target: ListenTarget::Peer { virtual_port: 4001 },
-                config: SessionConfig::default(),
-            });
+            app.world_mut()
+                .entity_mut(server_entity)
+                .insert(SteamServerIo {
+                    target: ListenTarget::Peer { virtual_port: 4001 },
+                    config: SessionConfig::default(),
+                });
         }
-
-
-        
-
-
 
         if self.client_recieve_commands.is_some() {
             app.add_crossbeam_event(self.client_recieve_commands.clone().unwrap().clone());
             app.add_observer(handle_server_started);
         }
         if self.server_send_commands.is_some() {
-            app.insert_resource(ServerCommandSender { server_commands: self.server_send_commands.clone().unwrap().clone() });
+            app.insert_resource(ServerCommandSender {
+                server_commands: self.server_send_commands.clone().unwrap().clone(),
+            });
             app.add_systems(FixedUpdate, handle_client_commands);
         }
-       
+
         // app.add_systems(OnEnter(GameState::Game), init.run_if(in_state(MultiplayerState::Server).or(in_state(MultiplayerState::HostServer))));
         app.add_systems(OnEnter(MultiplayerState::Server), start_server);
 
-
-
-
-        app.insert_resource(Global {
-            predict_all: true,
-        });
+        app.insert_resource(Global { predict_all: true });
         app.add_systems(OnEnter(MultiplayerState::Server), init);
         // the physics/FixedUpdates systems that consume inputs should be run in this set
         app.add_systems(
@@ -178,19 +154,14 @@ impl Plugin for ExampleServerPlugin {
     }
 }
 
-
-fn talk_to_me( server_q: Query<(Entity, Has<RemoteId>, Has<ReplicationSender>), With<Link>>) {
+fn talk_to_me(server_q: Query<(Entity, Has<RemoteId>, Has<ReplicationSender>), With<Link>>) {
 
     // for (e, remote, replication) in server_q {
     //     info!(" remote:{} rep:{}", remote, replication);
     // }
 }
 
-
-fn steam_callbacks(
-    steam: ResMut<SteamSingleClient>,
-    server_q: Query<Entity, With<Started>>
-) {
+fn steam_callbacks(steam: ResMut<SteamSingleClient>, server_q: Query<Entity, With<Started>>) {
     if server_q.is_empty() {
         // If the server is not started, we don't need to run the callbacks
         return;
@@ -198,24 +169,23 @@ fn steam_callbacks(
     // This system is responsible for running the Steamworks callbacks
     // It should be run every frame to ensure that the Steamworks API works correctly
     steam.steam.lock().run_callbacks();
-
 }
 
-
-pub fn start_server(mut commands: Commands, server_q: Query<Entity, With<Server>>, mut server_startup: ResMut<ServerStartupResources>, steam_works: Option<Res<SteamworksClient>>) {
-
+pub fn start_server(
+    mut commands: Commands,
+    server_q: Query<Entity, With<Server>>,
+    mut server_startup: ResMut<ServerStartupResources>,
+    steam_works: Option<Res<SteamworksClient>>,
+) {
     if let Some(server) = server_q.iter().next() {
         commands.trigger_targets(Start, server);
 
-
         if !server_startup.just_server {
-             if let Some(server_crossbeam) = &server_startup.server_crossbeam {
+            if let Some(server_crossbeam) = &server_startup.server_crossbeam {
                 // You need to provide a valid client_id here. For demonstration, we'll use 12345.
                 info!("Add a Linked connection for host client to server");
-                
-                let mut entity = commands.spawn(LinkOf {
-                    server: server,
-                });
+
+                let mut entity = commands.spawn(LinkOf { server: server });
                 entity.insert(PingManager::new(PingConfig {
                     ping_interval: Duration::default(),
                 }));
@@ -223,16 +193,18 @@ pub fn start_server(mut commands: Commands, server_q: Query<Entity, With<Server>
                 entity.insert(Linked);
                 entity.insert(server_crossbeam.clone());
                 entity.insert(RemoteId(PeerId::Netcode(1)));
-            } 
+            }
         }
-      
 
         if let Some(steam_work) = steam_works {
-            
-            let shared_data: Arc<parking_lot::lock_api::Mutex<parking_lot::RawMutex, Option<LobbyId>>> = Arc::new(Mutex::new(None));
+            let shared_data: Arc<
+                parking_lot::lock_api::Mutex<parking_lot::RawMutex, Option<LobbyId>>,
+            > = Arc::new(Mutex::new(None));
             let cloned_data = shared_data.clone();
-            steam_work.matchmaking().create_lobby(steamworks::LobbyType::FriendsOnly, 10, 
-              move |result: Result<LobbyId, steamworks::SteamError>| {
+            steam_work.matchmaking().create_lobby(
+                steamworks::LobbyType::FriendsOnly,
+                10,
+                move |result: Result<LobbyId, steamworks::SteamError>| {
                     match result {
                         Ok(lobby_id) => {
                             shared_data.clone().lock().replace(lobby_id);
@@ -243,16 +215,14 @@ pub fn start_server(mut commands: Commands, server_q: Query<Entity, With<Server>
                             eprintln!("Error creating lobby: {:?}", e);
                         }
                     }
-                },);
+                },
+            );
 
             server_startup.steam_lobby_id = Some(cloned_data);
             info_once!("{:?}", server_startup.steam_lobby_id);
         }
 
-
-
-        info!("Server Started"); 
-
+        info!("Server Started");
     } else {
         error!("No server entity found to set up");
         return;
@@ -265,9 +235,10 @@ pub(crate) fn handle_server_started(
     _trigger: Trigger<OnAdd, Started>,
     server_commands: Res<ServerCommandSender>,
 ) {
-    let _ = server_commands.server_commands.send(ServerCommands::ServerStarted);
+    let _ = server_commands
+        .server_commands
+        .send(ServerCommands::ServerStarted);
 }
-
 
 pub(crate) fn handle_client_commands(
     mut client_commands: EventReader<ClientCommands>,
@@ -276,53 +247,43 @@ pub(crate) fn handle_client_commands(
     mut game_state: ResMut<NextState<GameState>>,
     mut server_q: Query<Entity, With<Server>>,
     mut server_startup: ResMut<ServerStartupResources>,
-    steam_works: Option<Res<SteamworksClient>>
-    ) {
-
-    for c in  client_commands.read() {
-        
+    steam_works: Option<Res<SteamworksClient>>,
+) {
+    for c in client_commands.read() {
         match c {
             ClientCommands::StartServer => {
                 info!("Server received StartServer command");
                 multiplayer_state.set(MultiplayerState::Server);
                 game_state.set(GameState::Game);
-            },
+            }
             ClientCommands::StopServer => {
                 info!("Server received StopServer command");
-                 if let Some(server) = server_q.iter().next() {
-
+                if let Some(server) = server_q.iter().next() {
                     if let Some(ref steam_work) = steam_works {
                         if let Some(lobby_arc) = server_startup.steam_lobby_id.clone() {
-
                             if let Some(lobby_id) = *lobby_arc.lock() {
                                 steam_work.matchmaking().leave_lobby(lobby_id);
                             }
-
-                           
                         }
                         server_startup.steam_lobby_id = None;
-                       
                     }
 
-
-                    commands.trigger_targets(Unlink { reason: "Stopping Server".to_string()}, server);
+                    commands.trigger_targets(
+                        Unlink {
+                            reason: "Stopping Server".to_string(),
+                        },
+                        server,
+                    );
                     commands.trigger_targets(Stop, server);
-                    
+
                     info!("Server Stopped");
                 }
                 multiplayer_state.set(MultiplayerState::None);
                 game_state.set(GameState::Menu);
-
-
-            },
+            }
         }
     }
 }
-
-
-
-
-
 
 /// Since Player is replicated, this allows the clients to display remote players' latency stats.
 fn update_player_metrics(
@@ -359,7 +320,10 @@ fn init(mut commands: Commands) {
 
 /// Add the ReplicationSender component to new clients
 pub(crate) fn handle_new_client(trigger: Trigger<OnAdd, ClientOf>, mut commands: Commands) {
-    info!("remote id added, adding replication sender {}", trigger.target());
+    info!(
+        "remote id added, adding replication sender {}",
+        trigger.target()
+    );
     commands
         .entity(trigger.target())
         .insert(ReplicationSender::new(

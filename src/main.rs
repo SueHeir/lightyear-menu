@@ -127,8 +127,6 @@ fn main() {
 
 
     let mut server_app = new_headless_app();
-    // app.add_plugins(PhysicsPlugins::default())
-    //     .insert_resource(Gravity(Vec2::ZERO));
 
 
     let game_state = GameState::Menu;

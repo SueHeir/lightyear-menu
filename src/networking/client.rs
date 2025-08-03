@@ -8,7 +8,7 @@ use bevy::prelude::*;
 use leafwing_input_manager::prelude::{ActionState, InputMap};
 use lightyear::crossbeam::CrossbeamIo;
 use parking_lot::Mutex;
-use steamworks::{Callback, GameLobbyJoinRequested, LobbyId};
+use steamworks::GameLobbyJoinRequested;
 use core::net::Ipv4Addr;
 use core::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
@@ -16,9 +16,6 @@ use std::time::Duration;
 use lightyear::netcode::Key;
 use lightyear::prelude::client::*;
 use lightyear::prelude::*;
-use lightyear::prelude::PeerId::Steam;
-// use bevy::ecs::schedule::common_conditions::any_of;
-// use bevy::ecs::schedule::common_conditions::in_states;
 
 
 

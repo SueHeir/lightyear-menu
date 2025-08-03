@@ -1,6 +1,5 @@
 use avian2d::prelude::*;
 use bevy::prelude::*;
-use lightyear::prediction::correction::CorrectionPolicy;
 use core::time::Duration;
 use leafwing_input_manager::prelude::*;
 use serde::{Deserialize, Serialize};
