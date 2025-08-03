@@ -297,7 +297,7 @@ fn client_connect(
         commands.entity(client).insert((
             // NetcodeClient::new(auth, NetcodeConfig { client_timeout_secs: 10, ..Default::default()})?,
             SteamClientIo { target: ConnectTarget::Peer { steam_id: client_config.steam_connect_to.unwrap().0, virtual_port: 4001 }, config: SessionConfig { timeout_initial: Duration::from_secs(10), timeout_connected: Duration::from_secs(10), ..Default::default()} },
-            // RemoteId(Steam(client_config.steam_connect_to.unwrap().0.raw())),
+            RemoteId(PeerId::Steam(client_config.steam_connect_to.unwrap().0.raw())),
             Link::new(None), // This is the link to the server, which will be established when the client connects
         ));
 
