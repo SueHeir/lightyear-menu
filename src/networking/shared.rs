@@ -1,9 +1,9 @@
 use bevy::diagnostic::LogDiagnosticsPlugin;
 use bevy::ecs::query::QueryData;
 use bevy::prelude::*;
-use crossbeam_channel::{Receiver, TryRecvError};
 use core::hash::{Hash, Hasher};
 use core::time::Duration;
+use crossbeam_channel::{Receiver, TryRecvError};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
 use avian2d::prelude::*;
@@ -13,15 +13,17 @@ use lightyear::input::input_buffer::InputBuffer;
 use lightyear::prelude::*;
 use tracing::Level;
 
-use crate::networking::protocol::{BulletHitEvent, BulletLifetime, BulletMarker, ColorComponent, PhysicsBundle, Player, PlayerActions, Weapon, BULLET_SIZE, SHIP_LENGTH};
+use crate::networking::protocol::{
+    BulletHitEvent, BulletLifetime, BulletMarker, ColorComponent, PhysicsBundle, Player,
+    PlayerActions, Weapon, BULLET_SIZE, SHIP_LENGTH,
+};
 use crate::{GameCleanUp, GameState};
 
 pub(crate) const MAX_VELOCITY: f32 = 200.0;
 pub(crate) const WALL_SIZE: f32 = 350.0;
-pub const SERVER_REPLICATION_INTERVAL: Duration = Duration::from_millis(100); 
-pub const SERVER_ADDR: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 5000);
+pub const SERVER_REPLICATION_INTERVAL: Duration = Duration::from_millis(100);
+pub const SERVER_ADDR: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 5000);
 pub const FIXED_TIMESTEP_HZ: f64 = 64.0;
-
 
 #[derive(Clone)]
 pub struct SharedPlugin {
@@ -30,8 +32,6 @@ pub struct SharedPlugin {
 
 impl Plugin for SharedPlugin {
     fn build(&self, app: &mut App) {
-
-       
         app.add_plugins(super::protocol::ProtocolPlugin);
 
         // bundles
@@ -43,8 +43,8 @@ impl Plugin for SharedPlugin {
                 .build()
                 // disable Sync as it is handled by lightyear_avian
                 .disable::<SyncPlugin>(),
-            );
-            // .add_plugins(SyncPlugin::new(PostUpdate));
+        );
+        // .add_plugins(SyncPlugin::new(PostUpdate));
 
         app.insert_resource(Gravity(Vec2::ZERO));
 
@@ -354,11 +354,6 @@ pub(crate) fn process_collisions(
         }
     }
 }
-
-
-
-
-
 
 #[derive(Resource)]
 struct CrossbeamEventReceiver<T: Event>(Receiver<T>);

@@ -1,30 +1,31 @@
 //! The client plugin.
-use crate::networking::protocol::{BallMarker, BulletHitEvent, BulletMarker, PhysicsBundle, Player, PlayerActions};
+use crate::networking::protocol::{
+    BallMarker, BulletHitEvent, BulletMarker, PhysicsBundle, Player, PlayerActions,
+};
 use crate::networking::server::SteamSingleClient;
 use crate::networking::shared::*;
 use crate::{ClientCommands, ClientConfigInfo, GameState, MultiplayerState, ServerCommands};
 use avian2d::prelude::Collider;
 use bevy::prelude::*;
-use leafwing_input_manager::prelude::{ActionState, InputMap};
-use lightyear::crossbeam::CrossbeamIo;
-use parking_lot::Mutex;
-use steamworks::GameLobbyJoinRequested;
 use core::net::Ipv4Addr;
 use core::net::{IpAddr, SocketAddr};
-use std::sync::Arc;
-use std::time::Duration;
+use leafwing_input_manager::prelude::{ActionState, InputMap};
+use lightyear::crossbeam::CrossbeamIo;
 use lightyear::netcode::Key;
 use lightyear::prelude::client::*;
 use lightyear::prelude::*;
-
-
+use parking_lot::Mutex;
+use std::net::SocketAddrV4;
+use std::sync::Arc;
+use std::time::Duration;
+use steamworks::GameLobbyJoinRequested;
 
 #[derive(Resource)]
 pub struct ClientStartupResources {
     pub client_crossbeam: Option<CrossbeamIo>,
     pub client_sender_commands: Option<crossbeam_channel::Sender<ClientCommands>>,
-    pub steam_accept_join_game_request: Option<Arc<parking_lot::lock_api::Mutex<parking_lot::RawMutex, Option<SteamId>>>>,
-    
+    pub steam_accept_join_game_request:
+        Option<Arc<parking_lot::lock_api::Mutex<parking_lot::RawMutex, Option<SteamId>>>>,
 }
 pub struct ExampleClientPlugin {
     pub client_crossbeam: Option<CrossbeamIo>,
@@ -32,15 +33,14 @@ pub struct ExampleClientPlugin {
     pub server_receive_commands: Option<crossbeam_channel::Receiver<ServerCommands>>,
     pub steam: Option<lightyear::prelude::steamworks::Client>,
     pub wrapped_single_client: Option<Arc<Mutex<lightyear::prelude::steamworks::SingleClient>>>,
-    
 }
 
-const CLIENT_ADDR: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 4000);
+const CLIENT_ADDR: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 4000);
 
 impl Plugin for ExampleClientPlugin {
     fn build(&self, app: &mut App) {
         // add our client-specific logic. Here we will just connect to the server
-        
+
         app.insert_resource(ClientStartupResources {
             client_crossbeam: self.client_crossbeam.clone(),
             client_sender_commands: self.client_sender_commands.clone(),
@@ -50,55 +50,37 @@ impl Plugin for ExampleClientPlugin {
         app.add_systems(OnEnter(GameState::Menu), setup_steam_callbacks);
         app.add_crossbeam_event(self.server_receive_commands.clone().unwrap());
 
-
-
-        
-
         if self.steam.is_some() && self.wrapped_single_client.is_some() {
-
             info!("Setting up Steamworks for client connection");
 
             let steam = self.steam.clone().unwrap();
             let wrapped_single_client = self.wrapped_single_client.clone().unwrap();
-            
 
             app.insert_resource(SteamworksClient(steam.clone()));
-
 
             let resource = SteamSingleClient {
                 steam: wrapped_single_client.clone(),
             };
             app.insert_resource(resource);
-            app.add_systems(
-                PreUpdate,
-                steam_callbacks);
-
+            app.add_systems(PreUpdate, steam_callbacks);
         }
-        
-        
 
-        app.add_systems(OnEnter(MultiplayerState::ClientSpawnServer), client_start_server);
+        app.add_systems(
+            OnEnter(MultiplayerState::ClientSpawnServer),
+            client_start_server,
+        );
         app.add_systems(FixedUpdate, handle_server_commands);
         app.add_systems(OnEnter(MultiplayerState::Client), client_connect);
         app.add_systems(
             FixedUpdate,
-            clean_up_game_on_client_disconnect.run_if(
-                    in_state(MultiplayerState::Client),
-                
-            ),
+            clean_up_game_on_client_disconnect.run_if(in_state(MultiplayerState::Client)),
         );
-        app.add_systems(Update, esc_to_disconnect.run_if(
-            in_state(MultiplayerState::Client),
-        ));
-       
-        
         app.add_systems(
-            PreUpdate,
-            client_stop_server
+            Update,
+            esc_to_disconnect.run_if(in_state(MultiplayerState::Client)),
         );
 
-
-
+        app.add_systems(PreUpdate, client_stop_server);
 
         app.add_systems(FixedUpdate, (player_movement, shared_player_firing).chain());
         app.add_observer(add_ball_physics);
@@ -111,14 +93,10 @@ impl Plugin for ExampleClientPlugin {
                 .run_if(on_event::<BulletHitEvent>)
                 .after(process_collisions),
         );
-
     }
 }
 
-fn steam_callbacks(
-    steam: ResMut<SteamSingleClient>,
-    client_config: Res<ClientConfigInfo>, 
-) {
+fn steam_callbacks(steam: ResMut<SteamSingleClient>, client_config: Res<ClientConfigInfo>) {
     // This system is responsible for running the Steamworks callbacks
     // It should be run every frame to ensure that the Steamworks API works correctly
     // if client_config.seperate_mode {
@@ -135,7 +113,7 @@ pub fn esc_to_disconnect(
     mut client_startup: ResMut<ClientStartupResources>,
     mut game_state: ResMut<NextState<GameState>>,
     client_q: Query<Entity, With<Client>>,
-    client_config: Res<ClientConfigInfo>, 
+    client_config: Res<ClientConfigInfo>,
     mut commands: Commands,
 ) {
     if let Ok(client) = client_q.single_inner() {
@@ -147,47 +125,42 @@ pub fn esc_to_disconnect(
     }
 }
 
-fn setup_steam_callbacks(mut commands: Commands, mut client_startup: ResMut<ClientStartupResources>,  steam_works: Option<Res<SteamworksClient>>) -> Result {
-
-   
-
+fn setup_steam_callbacks(
+    mut commands: Commands,
+    mut client_startup: ResMut<ClientStartupResources>,
+    steam_works: Option<Res<SteamworksClient>>,
+) -> Result {
     if let Some(steam_work) = steam_works {
-
-
-        let shared_data: Arc<parking_lot::lock_api::Mutex<parking_lot::RawMutex, Option<SteamId>>> = Arc::new(Mutex::new(None));
+        let shared_data: Arc<parking_lot::lock_api::Mutex<parking_lot::RawMutex, Option<SteamId>>> =
+            Arc::new(Mutex::new(None));
         let cloned_data = shared_data.clone();
 
-
-        let _lobby_join_callback = steam_work.register_callback(
-           move |p: GameLobbyJoinRequested| { // The closure takes a GameLobbyJoinRequested struct as an argument
+        let _lobby_join_callback =
+            steam_work.register_callback(move |p: GameLobbyJoinRequested| {
+                // The closure takes a GameLobbyJoinRequested struct as an argument
                 shared_data.lock().replace(p.friend_steam_id);
-        });
-
+            });
 
         client_startup.steam_accept_join_game_request = Some(cloned_data);
     }
 
-
-
-
     Ok(())
 }
 
-
-
 fn client_start_server(mut client_startup: ResMut<ClientStartupResources>) {
-
     // We need to send a command to the server to start the server
     if let Some(sender) = &client_startup.client_sender_commands {
         let _result = sender.send(ClientCommands::StartServer);
     } else {
         error!("client_sender_commands is None, cannot send StartServer command");
     }
-
 }
 
-
-fn client_stop_server(client_config: Res<ClientConfigInfo>, mut client_startup: ResMut<ClientStartupResources>,  client_q: Query<(Entity, &Client), Added<Disconnected>>,) {
+fn client_stop_server(
+    client_config: Res<ClientConfigInfo>,
+    mut client_startup: ResMut<ClientStartupResources>,
+    client_q: Query<(Entity, &Client), Added<Disconnected>>,
+) {
     if !client_config.seperate_mode {
         // If we are in seperate mode, we don't need to stop the server
         return;
@@ -195,42 +168,37 @@ fn client_stop_server(client_config: Res<ClientConfigInfo>, mut client_startup: 
 
     if let Some(client) = client_q.single_inner().ok() {
         info!("Client disconnected, cleaning up game state");
-         if let Some(sender) = &client_startup.client_sender_commands {
+        if let Some(sender) = &client_startup.client_sender_commands {
             // let _result = sender.send(ClientCommands::StopServer);
         } else {
             error!("client_sender_commands is None, cannot send StartServer command");
         }
-    } 
+    }
     // We need to send a command to the server to start the server
-   
-
 }
 
 fn handle_server_commands(
     mut client_commands: EventReader<ServerCommands>,
     mut multiplayer_state: ResMut<NextState<MultiplayerState>>,
-    ) {
-
-    for c in  client_commands.read() {
-        
+) {
+    for c in client_commands.read() {
         match c {
             ServerCommands::ServerStarted => {
                 info!("client knows server is started!");
                 multiplayer_state.set(MultiplayerState::Client);
-            },
+            }
         }
     }
 }
 
-
 /// Trigger Client to connect to the server
 fn client_connect(
-    mut commands: Commands, 
+    mut commands: Commands,
     client_q: Query<Entity, With<Client>>,
-    client_config: Res<ClientConfigInfo>, 
+    client_config: Res<ClientConfigInfo>,
     mut client_startup: ResMut<ClientStartupResources>,
-    steam_works: Option<Res<SteamworksClient>>) -> Result {
-    
+    steam_works: Option<Res<SteamworksClient>>,
+) -> Result {
     // let client = client_q.single_inner().ok().unwrap();
 
     // commands.entity(client).try_remove::<CrossbeamIo>()
@@ -245,30 +213,30 @@ fn client_connect(
         commands.entity(e).try_despawn();
     }
 
-    let client = commands.spawn( (
-            Name::new("Client"), 
+    let client = commands
+        .spawn((
+            Name::new("Client"),
             Client::default(),
             ReplicationReceiver::default(),
             PredictionManager::default(),
             InterpolationManager::default(),
-    )).id();
+        ))
+        .id();
 
     if client_config.seperate_mode {
-
         let auth = Authentication::Manual {
             server_addr: SERVER_ADDR,
             client_id: 1,
             private_key: Key::default(),
             protocol_id: 0,
         };
-       
 
         commands.entity(client).insert((
-           PingManager::new(PingConfig {
+            PingManager::new(PingConfig {
                 ping_interval: Duration::default(),
             }),
             NetcodeClient::new(auth, NetcodeConfig::default())?,
-            client_startup.client_crossbeam.clone().unwrap(), 
+            client_startup.client_crossbeam.clone().unwrap(),
             LocalAddr(CLIENT_ADDR),
             PeerAddr(SERVER_ADDR),
             Link::new(None), // This is the link to the server, which will be established when the client connects
@@ -296,13 +264,25 @@ fn client_connect(
 
         commands.entity(client).insert((
             // NetcodeClient::new(auth, NetcodeConfig { client_timeout_secs: 10, ..Default::default()})?,
-            SteamClientIo { target: ConnectTarget::Peer { steam_id: client_config.steam_connect_to.unwrap().0, virtual_port: 4001 }, config: SessionConfig { timeout_initial: Duration::from_secs(10), timeout_connected: Duration::from_secs(10), ..Default::default()} },
-            RemoteId(PeerId::Steam(client_config.steam_connect_to.unwrap().0.raw())),
+            SteamClientIo {
+                target: ConnectTarget::Peer {
+                    steam_id: client_config.steam_connect_to.unwrap().0,
+                    virtual_port: 4001,
+                },
+                config: SessionConfig {
+                    timeout_initial: Duration::from_secs(10),
+                    timeout_connected: Duration::from_secs(10),
+                    ..Default::default()
+                },
+            },
+            RemoteId(PeerId::Steam(
+                client_config.steam_connect_to.unwrap().0.raw(),
+            )),
             Link::new(None), // This is the link to the server, which will be established when the client connects
         ));
 
         // if let Some(steam_work) = steam_works {
-        //     steam_work.matchmaking().join_lobby(client_config.steam_connect_to.unwrap().1, 
+        //     steam_work.matchmaking().join_lobby(client_config.steam_connect_to.unwrap().1,
         //     |result: Result<LobbyId, ()>| {
         //             match result {
         //                 Ok(lobby_id) => {
@@ -316,37 +296,47 @@ fn client_connect(
         //         },);
         // }
 
-
-
         commands.trigger_targets(Connect, client);
         info!("Using Steam for client connection");
 
         return Ok(());
-    } 
+    }
 
+    let address: Ipv4Addr = client_config
+        .address
+        .parse()
+        .unwrap_or(Ipv4Addr::new(127, 0, 0, 1));
+
+    let port = client_config.port.parse::<u16>().unwrap_or(5000);
+
+    let server_addr = SocketAddr::V4(SocketAddrV4::new(address, port));
 
     let auth = Authentication::Manual {
-        server_addr: SERVER_ADDR,
+        server_addr,
         client_id: rand::random::<u64>(),
         private_key: Key::default(),
         protocol_id: 0,
     };
 
+    info!("Server Address: {:?}", server_addr);
+
     // Connect to the server using standard udp
     commands.entity(client).insert((
+        // Link::new(Some(RecvLinkConditioner::new(LinkConditionerConfig {
+        //     incoming_latency: Duration::from_millis(55),
+        //     incoming_jitter: Duration::from_millis(5),
+        //     incoming_loss: 0.0,
+        // }))),
         Link::new(None),
-        UdpIo::default(), 
+        UdpIo::default(),
         NetcodeClient::new(auth, NetcodeConfig::default())?,
         LocalAddr(CLIENT_ADDR),
-        PeerAddr(SERVER_ADDR),
+        PeerAddr(server_addr),
     ));
-
-    commands.trigger_targets(Connect, client);
 
     info!("Using Udp for client connection");
     Ok(())
 }
-
 
 pub fn clean_up_game_on_client_disconnect(
     client_q: Query<Entity, With<Disconnected>>,
@@ -365,12 +355,8 @@ pub fn clean_up_game_on_client_disconnect(
         } else {
             error!("client_sender_commands is None, cannot send StopServer command");
         }
-    } 
+    }
 }
-
-
-
-
 
 /// When the ball gets replicated from the server, add all the components
 /// that we need that are not replicated.
