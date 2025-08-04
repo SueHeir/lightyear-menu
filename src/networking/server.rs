@@ -6,8 +6,6 @@
 //! - read inputs from the clients and move the player entities accordingly
 //!
 //! Lightyear will handle the replication of entities automatically if you add a `Replicate` component to them.
-use std::net::Ipv4Addr;
-use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -110,12 +108,12 @@ impl Plugin for ExampleServerPlugin {
                 PreUpdate,
                 steam_callbacks.run_if(in_state(MultiplayerState::Server)),
             );
-            let server_addr = SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), 5001);
+
             // If the server is using Steamworks, we need to add the SteamServerIo component
             app.world_mut()
                 .entity_mut(server_entity)
                 .insert(SteamServerIo {
-                    target: ListenTarget::Addr(server_addr),
+                    target: ListenTarget::Peer { virtual_port: 4001 },
                     config: SessionConfig::default(),
                 });
         }
