@@ -93,6 +93,9 @@ impl Plugin for ExampleServerPlugin {
             info!("Setting up Steamworks for server connection");
 
             let steam = self.steam.clone().unwrap();
+
+            steam.networking_utils().init_relay_network_access();
+
             let wrapped_single_client = self.wrapped_single_client.clone().unwrap();
 
             app.insert_resource(SteamworksClient(steam.clone()));

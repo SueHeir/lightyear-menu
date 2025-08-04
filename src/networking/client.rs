@@ -54,6 +54,9 @@ impl Plugin for ExampleClientPlugin {
             info!("Setting up Steamworks for client connection");
 
             let steam = self.steam.clone().unwrap();
+
+            steam.networking_utils().init_relay_network_access();
+
             let wrapped_single_client = self.wrapped_single_client.clone().unwrap();
 
             app.insert_resource(SteamworksClient(steam.clone()));
@@ -99,10 +102,10 @@ impl Plugin for ExampleClientPlugin {
 fn steam_callbacks(steam: ResMut<SteamSingleClient>, client_config: Res<ClientConfigInfo>) {
     // This system is responsible for running the Steamworks callbacks
     // It should be run every frame to ensure that the Steamworks API works correctly
-    // if client_config.seperate_mode {
-    //     // If we are in seperate mode, we don't need to run the callbacks
-    //     return;
-    // }
+    if client_config.seperate_mode {
+        // If we are in seperate mode, we don't need to run the callbacks
+        return;
+    }
 
     steam.steam.lock().run_callbacks();
 }
