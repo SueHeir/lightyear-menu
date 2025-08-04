@@ -28,10 +28,7 @@ impl Plugin for MenuPlugin {
             // entering the `GameState::Menu` state.
             // Current screen in the menu is handled by an independent state from `GameState`
             .init_state::<MenuState>()
-            .add_systems(
-                OnEnter(GameState::Menu),
-                (menu_setup),
-            )
+            .add_systems(OnEnter(GameState::Menu), (menu_setup))
             // Systems to handle the main menu screen
             .add_systems(OnEnter(MenuState::Main), main_menu_setup)
             .add_systems(OnEnter(MenuState::JoinServer), join_server_menu_setup)
@@ -47,10 +44,12 @@ impl Plugin for MenuPlugin {
                 (menu_action, button_system).run_if(in_state(GameState::Menu)),
             )
             .add_systems(Update, listener.after(TextInputSystem));
-        
-        app.add_systems(Update, client_accepts_join_game.run_if(
-            in_state(MultiplayerState::None).and(in_state(GameState::Menu)),
-        ));
+
+        app.add_systems(
+            Update,
+            client_accepts_join_game
+                .run_if(in_state(MultiplayerState::None).and(in_state(GameState::Menu))),
+        );
     }
 }
 
@@ -89,7 +88,7 @@ enum MenuButtonAction {
     SeperateAndJoin,
     JoinServerScreen,
     MainMenu,
-    JoinSteamFriend((SteamId, LobbyId)),
+    JoinSteamFriend((SteamId, LobbyId, Ipv4Addr, u16)),
     JoinServer,
     Quit,
 }
@@ -193,7 +192,6 @@ fn main_menu_setup(mut commands: Commands) {
                             ));
                         });
 
-
                     parent
                         .spawn((
                             Button,
@@ -208,7 +206,6 @@ fn main_menu_setup(mut commands: Commands) {
                                 TextColor(TEXT_COLOR),
                             ));
                         });
-                        
 
                     parent
                         .spawn((
@@ -251,10 +248,10 @@ fn menu_action(
                 MenuButtonAction::MainMenu => {
                     menu_state.set(MenuState::Main);
                 }
-                MenuButtonAction::JoinSteamFriend((id, lobby_id)) => {
+                MenuButtonAction::JoinSteamFriend((id, lobby_id, ip4_address, port)) => {
                     client_setup_info.seperate_mode = false;
-                    client_setup_info.steam_connect_to = Some((*id, *lobby_id));
-
+                    client_setup_info.steam_connect_to =
+                        Some((*id, *lobby_id, *ip4_address, *port));
                     game_state.set(GameState::Game);
                     menu_state.set(MenuState::Disabled);
                     multiplayer_state.set(MultiplayerState::Client)
@@ -276,12 +273,11 @@ fn menu_action(
                     menu_state.set(MenuState::Disabled);
                     multiplayer_state.set(MultiplayerState::ClientSpawnServer);
                     // multiplayer_state.set(MultiplayerState::Client);
-                },
+                }
             }
         }
     }
 }
-
 
 //Non-menu actions that only happen in the menu
 
@@ -290,35 +286,46 @@ fn client_accepts_join_game(
     mut menu_state: ResMut<NextState<MenuState>>,
     mut game_state: ResMut<NextState<GameState>>,
     mut multiplayer_state: ResMut<NextState<MultiplayerState>>,
-    mut client_setup_info: ResMut<crate::ClientConfigInfo>,) {
+    mut client_setup_info: ResMut<crate::ClientConfigInfo>,
+) {
+    // if let Some(temp) = client_startup.steam_accept_join_game_request.clone() {
+    //     if let Some(guard) = temp.try_lock() {
+    //         if let Some(steam_id) = *guard {
+    //             client_setup_info.seperate_mode = false;
+    //             client_setup_info.steam_connect_to = Some((steam_id, LobbyId::from_raw(0)));
 
-    if let Some(temp) = client_startup.steam_accept_join_game_request.clone() {
-        if let Some(guard) = temp.try_lock() {
-            if let Some(steam_id) = *guard {
-
-                client_setup_info.seperate_mode = false;
-                client_setup_info.steam_connect_to = Some((steam_id, LobbyId::from_raw(0)));
-
-                game_state.set(GameState::Game);
-                menu_state.set(MenuState::Disabled);
-                multiplayer_state.set(MultiplayerState::Client);
-                client_startup.steam_accept_join_game_request = None;
-            }
-        }
-    }
-
+    //             game_state.set(GameState::Game);
+    //             menu_state.set(MenuState::Disabled);
+    //             multiplayer_state.set(MultiplayerState::Client);
+    //             client_startup.steam_accept_join_game_request = None;
+    //         }
+    //     }
+    // }
 }
 
-fn join_server_menu_setup(mut commands: Commands, mut steamworks: Option<ResMut<SteamworksClient>>) {//mut steamworks: ResMut<SteamworksResource>
+fn join_server_menu_setup(
+    mut commands: Commands,
+    mut steamworks: Option<ResMut<SteamworksClient>>,
+) {
+    //mut steamworks: ResMut<SteamworksResource>
     let mut steam_friends = Vec::new();
 
     if let Some(steamworks) = steamworks.as_mut() {
-         for friend in steamworks
-        .0.friends().get_friends(FriendFlags::all()).iter()
+        for friend in steamworks
+            .0
+            .friends()
+            .get_friends(FriendFlags::all())
+            .iter()
         {
             if let Some(game_info) = friend.game_played() {
                 if game_info.game.app_id().0 == 480 && game_info.lobby.raw() != 0 {
-                    steam_friends.push((friend.name(), friend.id(), game_info.lobby));
+                    steam_friends.push((
+                        friend.name(),
+                        friend.id(),
+                        game_info.lobby,
+                        game_info.game_address,
+                        game_info.game_port,
+                    ));
                     println!(
                         "{:?} {:?} {:?} {:?} {:?} {:?}",
                         friend.name(),
@@ -331,8 +338,7 @@ fn join_server_menu_setup(mut commands: Commands, mut steamworks: Option<ResMut<
                 }
             }
         }
-    } 
-  
+    }
 
     // Common style for all buttons on the screen
     let button_node = Node {
@@ -379,13 +385,13 @@ fn join_server_menu_setup(mut commands: Commands, mut steamworks: Option<ResMut<
                     })),
                 ))
                 .with_children(|parent| {
-                    for (friend, id, lobby) in steam_friends {
+                    for (friend, id, lobby, ipv4_address, port) in steam_friends {
                         parent
                             .spawn((
                                 Button,
                                 button_node.clone(),
                                 BackgroundColor(NORMAL_BUTTON),
-                                MenuButtonAction::JoinSteamFriend((id, lobby)),
+                                MenuButtonAction::JoinSteamFriend((id, lobby, ipv4_address, port)),
                             ))
                             .with_children(|parent| {
                                 parent.spawn((

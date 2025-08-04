@@ -2,27 +2,41 @@ mod camera;
 mod menu;
 mod networking;
 
-use std::{net::Ipv4Addr, str::FromStr, sync::{Arc, OnceLock}, time::Duration};
-use parking_lot::{Mutex};
 use avian2d::prelude::*;
-use bevy::{app::ScheduleRunnerPlugin, gizmos::cross, log::{tracing_subscriber::Layer, BoxedLayer, LogPlugin}, prelude::*, winit::WinitPlugin};
+use bevy::{
+    app::ScheduleRunnerPlugin,
+    gizmos::cross,
+    log::{tracing_subscriber::Layer, BoxedLayer, LogPlugin},
+    prelude::*,
+    winit::WinitPlugin,
+};
 use bevy_inspector_egui::{bevy_egui::EguiPlugin, quick::WorldInspectorPlugin};
 use bevy_simple_text_input::TextInputPlugin;
+use parking_lot::Mutex;
+use std::{
+    net::Ipv4Addr,
+    str::FromStr,
+    sync::{Arc, OnceLock},
+    time::Duration,
+};
 
 // use iyes_perf_ui::PerfUiPlugin;
 use camera::CameraPlugin;
-use lightyear::{connection::prelude::server, prelude::{server::ServerPlugins, InterpolationRegistry, SteamId, SteamworksClient}, steam};
 use lightyear::crossbeam::CrossbeamIo;
+use lightyear::{
+    connection::prelude::server,
+    prelude::{server::ServerPlugins, InterpolationRegistry, SteamId, SteamworksClient},
+    steam,
+};
 // use lightyear::{client::config::NetcodeConfig, prelude::{client::{Authentication, ClientTransport, IoConfig, NetConfig}, CompressionConfig, Key, SteamworksClient}, transport::LOCAL_SOCKET};
 // use menu::MenuPlugin;
-use networking::{server::ExampleServerPlugin, shared::SharedPlugin, NetworkingPlugin};
 use clap::{Parser, Subcommand, ValueEnum};
+use networking::{server::ExampleServerPlugin, shared::SharedPlugin, NetworkingPlugin};
 use steamworks::{LobbyId, SingleClient};
 use sync_cell::SyncCell;
 use tracing::Level;
 
 use crate::{menu::MenuPlugin, networking::shared::FIXED_TIMESTEP_HZ};
-
 
 #[derive(Component)]
 pub struct GameCleanUp;
@@ -52,10 +66,8 @@ struct ClientConfigInfo {
     address: String,
     port: String,
     seperate_mode: bool,
-    steam_connect_to: Option<(SteamId, LobbyId)>,
+    steam_connect_to: Option<(SteamId, LobbyId, Ipv4Addr, u16)>,
 }
-
-
 
 #[derive(Event)]
 pub enum ClientCommands {
@@ -63,16 +75,12 @@ pub enum ClientCommands {
     StopServer,
 }
 
-
 #[derive(Event)]
 pub enum ServerCommands {
     ServerStarted,
 }
 
-
-
 use tracing_appender::{non_blocking::WorkerGuard, rolling};
-
 
 static LOG_GUARD: OnceLock<WorkerGuard> = OnceLock::new();
 
@@ -80,16 +88,14 @@ fn custom_layer(_app: &mut App) -> Option<BoxedLayer> {
     let file_appender = rolling::daily("logs", "app.log");
     let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
     let _ = LOG_GUARD.set(guard);
-    Some(bevy::log::tracing_subscriber::fmt::layer()
+    Some(
+        bevy::log::tracing_subscriber::fmt::layer()
             .with_writer(non_blocking)
             .with_file(true)
             .with_line_number(true)
-            .boxed())
+            .boxed(),
+    )
 }
-
-
-
-
 
 /// CLI options to create an [`App`]
 #[derive(Parser, Debug)]
@@ -111,40 +117,29 @@ pub enum Mode {
 //     pub steam: SyncCell<lightyear::prelude::steamworks::SingleClient>,
 // }
 
-
-
-
-
-
 fn main() {
-    
-    
     let (crossbeam_client, crossbeam_server) = CrossbeamIo::new_pair();
 
-    let (client_commands_send, client_commands_receive) = crossbeam_channel::unbounded::<ClientCommands>();
-    let (server_commands_send, server_commands_receive) = crossbeam_channel::unbounded::<ServerCommands>();
-
-
+    let (client_commands_send, client_commands_receive) =
+        crossbeam_channel::unbounded::<ClientCommands>();
+    let (server_commands_send, server_commands_receive) =
+        crossbeam_channel::unbounded::<ServerCommands>();
 
     let mut server_app = new_headless_app();
-
 
     let game_state = GameState::Menu;
     server_app.insert_state(game_state);
     let server_multiplayer_state = MultiplayerState::None;
     server_app.insert_state(server_multiplayer_state);
 
-
     //  let steam_client: Arc<parking_lot::lock_api::RwLock<parking_lot::RawRwLock, SteamworksClient>> = Arc::new(RwLock::new(SteamworksClient::));
     let (steam_result) = lightyear::prelude::steamworks::Client::init_app(480);
 
     // let (steam, single_client) = lightyear::prelude::steamworks::SingleClient::init_app(480);
 
-
     let steam: Option<lightyear::prelude::steamworks::Client>;
     let wrapped_single_client: Option<Arc<Mutex<lightyear::prelude::steamworks::SingleClient>>>;
-      
-      
+
     if steam_result.is_err() {
         steam = None;
         wrapped_single_client = None;
@@ -152,7 +147,6 @@ fn main() {
         let steam_tuple = steam_result.unwrap();
         steam = Some(steam_tuple.0);
         wrapped_single_client = Some(Arc::new(Mutex::new(steam_tuple.1)));
-   
 
         // server_app.insert_resource(SteamworksClient(steam.clone().unwrap()));
         // server_app.insert_resource(resource);
@@ -162,48 +156,42 @@ fn main() {
         //         steam.steam.borrow().run_callbacks();
         //     },);
     }
-     
 
     server_app.add_plugins(ServerPlugins {
         tick_duration: Duration::from_secs_f64(1.0 / FIXED_TIMESTEP_HZ),
     });
 
-    server_app.add_plugins(SharedPlugin { show_confirmed: false});
+    server_app.add_plugins(SharedPlugin {
+        show_confirmed: false,
+    });
 
-    server_app.add_systems(
-OnEnter(GameState::Menu),
-despawn_screen::<GameCleanUp>,
-    );
-    
-   
-
-    
-
+    server_app.add_systems(OnEnter(GameState::Menu), despawn_screen::<GameCleanUp>);
 
     let cli = Cli::parse();
 
     match cli.mode {
-        Mode::Full => { //Client here does spawn server in background
+        Mode::Full => {
+            //Client here does spawn server in background
 
-            server_app.add_plugins(ExampleServerPlugin { 
+            server_app.add_plugins(ExampleServerPlugin {
                 just_server: false,
                 server_crossbeam: Some(crossbeam_server),
-                client_recieve_commands:  Some(client_commands_receive),
-                server_send_commands:  Some(server_commands_send),
+                client_recieve_commands: Some(client_commands_receive),
+                server_send_commands: Some(server_commands_send),
                 steam: steam.clone(),
                 wrapped_single_client: wrapped_single_client.clone(),
             });
             let mut send_app = SendApp(server_app);
             std::thread::spawn(move || send_app.run());
             info!("Spawned Server as background task (server is not started yet");
-        },
-        Mode::Client => {}, //Client here does not spawn server in background
+        }
+        Mode::Client => {} //Client here does not spawn server in background
         Mode::Server => {
-            server_app.add_plugins(ExampleServerPlugin { 
+            server_app.add_plugins(ExampleServerPlugin {
                 just_server: true,
                 server_crossbeam: Some(crossbeam_server),
-                client_recieve_commands:  Some(client_commands_receive),
-                server_send_commands:  Some(server_commands_send),
+                client_recieve_commands: Some(client_commands_receive),
+                server_send_commands: Some(server_commands_send),
                 steam: steam.clone(),
                 wrapped_single_client: wrapped_single_client.clone(),
             });
@@ -214,14 +202,8 @@ despawn_screen::<GameCleanUp>,
             server_app.insert_state(server_multiplayer_state);
             server_app.run();
             return;
-        },
+        }
     }
-
-  
-
-
-    
-
 
     let client_config = ClientConfigInfo {
         address: "127.0.0.1".to_string(),
@@ -232,49 +214,52 @@ despawn_screen::<GameCleanUp>,
 
     let mut client_app = App::new();
 
-
-        //Bevy Setup
-       client_app.add_plugins(DefaultPlugins.set(WindowPlugin {
-            primary_window: Some(Window {
-                title: "Menu Example".to_string(),
+    //Bevy Setup
+    client_app.add_plugins(
+        DefaultPlugins
+            .set(WindowPlugin {
+                primary_window: Some(Window {
+                    title: "Menu Example".to_string(),
+                    ..Default::default()
+                }),
                 ..Default::default()
+            })
+            .set(LogPlugin {
+                // custom_layer,
+                level: Level::INFO,
+                filter: "lightyear_steam=trace,".to_string(), //
+                ..default()                                   //
             }),
-            ..Default::default()
-        }).set(LogPlugin {
-            // custom_layer,
-            level: Level::INFO,
-            filter: "lightyear_steam=trace,".to_string(), //
-            ..default() //
-        }));
-       
+    );
 
-        //Avian Physics
-        // .add_plugins(PhysicsPlugins::default().build())
-        // .insert_resource(Gravity(Vec2::ZERO))
-        // .add_plugins(PhysicsDebugPlugin::default())
-        //Lightyear Setup
-        
-        client_app.add_plugins(NetworkingPlugin { client_crossbeam: Some(crossbeam_client), 
-            client_sender_commands: Some(client_commands_send.clone()),
-            server_receive_commands: Some(server_commands_receive.clone()),
-            steam: steam.clone(),
-            wrapped_single_client: wrapped_single_client.clone(),
-        });
+    //Avian Physics
+    // .add_plugins(PhysicsPlugins::default().build())
+    // .insert_resource(Gravity(Vec2::ZERO))
+    // .add_plugins(PhysicsDebugPlugin::default())
+    //Lightyear Setup
 
-        // if let Some((steamclient, steam_single)) = steam {
-        //     info!("Steamworks client initialized successfully");
-        //     client_app.insert_resource(lightyear::prelude::SteamworksClient(steamclient.clone()))
-        //         .insert_non_send_resource(steam_single)
-        //         .add_systems(
-        //             PreUpdate,
-        //             |steam: NonSend<lightyear::prelude::steamworks::SingleClient>| {
-        //                 steam.run_callbacks();
-        //             },
-        //     );
-        // } else {
-        //     error!("Failed to initialize Steamworks client, running without Steam support");
-        // }
-        client_app
+    client_app.add_plugins(NetworkingPlugin {
+        client_crossbeam: Some(crossbeam_client),
+        client_sender_commands: Some(client_commands_send.clone()),
+        server_receive_commands: Some(server_commands_receive.clone()),
+        steam: steam.clone(),
+        wrapped_single_client: wrapped_single_client.clone(),
+    });
+
+    // if let Some((steamclient, steam_single)) = steam {
+    //     info!("Steamworks client initialized successfully");
+    //     client_app.insert_resource(lightyear::prelude::SteamworksClient(steamclient.clone()))
+    //         .insert_non_send_resource(steam_single)
+    //         .add_systems(
+    //             PreUpdate,
+    //             |steam: NonSend<lightyear::prelude::steamworks::SingleClient>| {
+    //                 steam.run_callbacks();
+    //             },
+    //     );
+    // } else {
+    //     error!("Failed to initialize Steamworks client, running without Steam support");
+    // }
+    client_app
         .insert_resource(client_config)
         //Menu Setup
         .init_state::<GameState>()
@@ -283,11 +268,10 @@ despawn_screen::<GameCleanUp>,
         .add_plugins(TextInputPlugin) //For IP Address Input
         //Game Setup
         .add_plugins(CameraPlugin)
-        .add_systems(
-            OnEnter(GameState::Menu),
-            despawn_screen::<GameCleanUp>,
-        )
-        .add_plugins(EguiPlugin { enable_multipass_for_primary_context: true })
+        .add_systems(OnEnter(GameState::Menu), despawn_screen::<GameCleanUp>)
+        .add_plugins(EguiPlugin {
+            enable_multipass_for_primary_context: true,
+        })
         .add_plugins(WorldInspectorPlugin::new())
         .run();
 }
@@ -298,7 +282,6 @@ fn despawn_screen<T: Component>(to_despawn: Query<Entity, With<T>>, mut commands
         commands.entity(entity).despawn();
     }
 }
-
 
 pub fn new_headless_app() -> App {
     let mut app = App::new();
@@ -319,16 +302,15 @@ pub fn new_headless_app() -> App {
                 ..default()
             })
             // WinitPlugin will panic in environments without a display server.
-            .disable::<WinitPlugin>()
-            // .disable::<LogPlugin>(),
+            .disable::<WinitPlugin>(), // .disable::<LogPlugin>(),
     );
 
     // ScheduleRunnerPlugin provides an alternative to the default bevy_winit app runner, which
     // manages the loop without creating a window.
     app.add_plugins(ScheduleRunnerPlugin::run_loop(
-            // Run 60 times per second.
-            Duration::from_secs_f64(1.0 / 60.0),
-        ));
+        // Run 60 times per second.
+        Duration::from_secs_f64(1.0 / 60.0),
+    ));
     // app.add_plugins((
     //     MinimalPlugins,
     //     StatesPlugin,
@@ -338,7 +320,6 @@ pub fn new_headless_app() -> App {
     // ));
     app
 }
-
 
 /// App that is Send.
 /// Used as a convenient workaround to send an App to a separate thread,
@@ -351,6 +332,3 @@ impl SendApp {
         self.0.run();
     }
 }
-
-
-

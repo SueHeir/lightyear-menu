@@ -265,13 +265,15 @@ fn client_connect(
             protocol_id: 0,
         };
 
+        let server_address = SocketAddr::V4(SocketAddrV4::new(
+            client_config.steam_connect_to.unwrap().2,
+            client_config.steam_connect_to.unwrap().3,
+        ));
+
         commands.entity(client).insert((
             // NetcodeClient::new(auth, NetcodeConfig { client_timeout_secs: 10, ..Default::default()})?,
             SteamClientIo {
-                target: ConnectTarget::Peer {
-                    steam_id: client_config.steam_connect_to.unwrap().0,
-                    virtual_port: 4001,
-                },
+                target: ConnectTarget::Addr(server_address),
                 config: SessionConfig {
                     timeout_initial: Duration::from_secs(10),
                     timeout_connected: Duration::from_secs(10),
