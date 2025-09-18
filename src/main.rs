@@ -209,75 +209,74 @@ fn main() {
         }
     }
 
-    // let client_config = ClientConfigInfo {
-    //     address: "127.0.0.1".to_string(),
-    //     port: "5000".to_string(),
-    //     seperate_mode: false,
-    //     steam_connect_to: None,
-    // };
+    let client_config = ClientConfigInfo {
+        address: "127.0.0.1".to_string(),
+        port: "5000".to_string(),
+        seperate_mode: false,
+        steam_connect_to: None,
+    };
 
-    // let mut client_app = App::new();
+    let mut client_app = App::new();
 
-    // //Bevy Setup
-    // client_app.add_plugins(
-    //     DefaultPlugins
-    //         .set(WindowPlugin {
-    //             primary_window: Some(Window {
-    //                 title: "Menu Example".to_string(),
-    //                 ..Default::default()
-    //             }),
-    //             ..Default::default()
-    //         })
-    //         .set(LogPlugin {
-    //             // custom_layer,
-    //             level: Level::INFO,
-    //             filter: "lightyear_steam=trace,".to_string(), //
-    //             ..default()                                   //
-    //         }),
-    // );
+    //Bevy Setup
+    client_app.add_plugins(
+        DefaultPlugins
+            .set(WindowPlugin {
+                primary_window: Some(Window {
+                    title: "Menu Example".to_string(),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            })
+            .set(LogPlugin {
+                // custom_layer,
+                level: Level::INFO,
+                filter: "lightyear_steam=trace,".to_string(), //
+                ..default()                                   //
+            }),
+    );
 
-    // //Avian Physics
-    // // .add_plugins(PhysicsPlugins::default().build())
-    // // .insert_resource(Gravity(Vec2::ZERO))
-    // // .add_plugins(PhysicsDebugPlugin::default())
-    // //Lightyear Setup
+    //Avian Physics
+    // .add_plugins(PhysicsPlugins::default().build())
+    // .insert_resource(Gravity(Vec2::ZERO))
+    // .add_plugins(PhysicsDebugPlugin::default())
+    //Lightyear Setup
 
-    // client_app.add_plugins(NetworkingPlugin {
-    //     client_crossbeam: Some(crossbeam_client),
-    //     client_sender_commands: Some(client_commands_send.clone()),
-    //     server_receive_commands: Some(server_commands_receive.clone()),
-    //     steam: steam.clone(),
-    //     wrapped_single_client: wrapped_single_client.clone(),
-    // });
+    client_app.add_plugins(NetworkingPlugin {
+        client_crossbeam: Some(crossbeam_client),
+        client_sender_commands: Some(client_commands_send.clone()),
+        server_receive_commands: Some(server_commands_receive.clone()),
+        steam: steam.clone(),
+    });
 
-    // // if let Some((steamclient, steam_single)) = steam {
-    // //     info!("Steamworks client initialized successfully");
-    // //     client_app.insert_resource(lightyear::prelude::SteamworksClient(steamclient.clone()))
-    // //         .insert_non_send_resource(steam_single)
-    // //         .add_systems(
-    // //             PreUpdate,
-    // //             |steam: NonSend<lightyear::prelude::steamworks::SingleClient>| {
-    // //                 steam.run_callbacks();
-    // //             },
-    // //     );
-    // // } else {
-    // //     error!("Failed to initialize Steamworks client, running without Steam support");
-    // // }
-    // client_app
-    //     .insert_resource(client_config)
-    //     //Menu Setup
-    //     .init_state::<GameState>()
-    //     .init_state::<MultiplayerState>()
-    //     .add_plugins(MenuPlugin)
-    //     .add_plugins(TextInputPlugin) //For IP Address Input
-    //     //Game Setup
-    //     .add_plugins(CameraPlugin)
-    //     .add_systems(OnEnter(GameState::Menu), despawn_screen::<GameCleanUp>)
-    //     .add_plugins(EguiPlugin {
-    //         enable_multipass_for_primary_context: true,
-    //     })
-    //     .add_plugins(WorldInspectorPlugin::new())
-    //     .run();
+    // if let Some((steamclient, steam_single)) = steam {
+    //     info!("Steamworks client initialized successfully");
+    //     client_app.insert_resource(lightyear::prelude::SteamworksClient(steamclient.clone()))
+    //         .insert_non_send_resource(steam_single)
+    //         .add_systems(
+    //             PreUpdate,
+    //             |steam: NonSend<lightyear::prelude::steamworks::SingleClient>| {
+    //                 steam.run_callbacks();
+    //             },
+    //     );
+    // } else {
+    //     error!("Failed to initialize Steamworks client, running without Steam support");
+    // }
+    client_app
+        .insert_resource(client_config)
+        //Menu Setup
+        .init_state::<GameState>()
+        .init_state::<MultiplayerState>()
+        .add_plugins(MenuPlugin)
+        .add_plugins(TextInputPlugin) //For IP Address Input
+        //Game Setup
+        .add_plugins(CameraPlugin)
+        .add_systems(OnEnter(GameState::Menu), despawn_screen::<GameCleanUp>)
+        .add_plugins(EguiPlugin {
+            enable_multipass_for_primary_context: true,
+        })
+        .add_plugins(WorldInspectorPlugin::new())
+        .run();
 }
 
 // Generic system that takes a component as a parameter, and will despawn all entities with that component
