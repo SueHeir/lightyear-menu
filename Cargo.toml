@@ -14,7 +14,9 @@ opt-level = 1
 opt-level = 3
 
 [dependencies]
-bevy = {version = "0.16"}
+bevy = {version = "0.16.1"}
+bevy_core_pipeline = "0.16.1"
+aeronet_io = "*"
 serde = "*"
 rand = "*"
 tracing = "*"
@@ -30,7 +32,7 @@ lightyear = {git = "https://github.com/cBournhonesque/lightyear.git" ,features =
     "prediction", 
     "replication",
 ] } #cBournhonesque
-steamworks = "0.11"
+steamworks = "0.12.2"
 crossbeam-channel = { version = "0.5.13", features = [] }
 clap = { version = "4.5.4", features = ["derive"] }
 parking_lot = "*"

@@ -23,6 +23,8 @@ use crate::ClientCommands;
 use crate::GameState;
 use crate::MultiplayerState;
 use crate::ServerCommands;
+use aeronet_io::packet::clear_recv_buffers;
+use aeronet_io::IoSet;
 use avian2d::prelude::Position;
 use bevy::color::palettes::css;
 use bevy::prelude::*;
@@ -52,19 +54,15 @@ pub struct ServerStartupResources {
         Option<Arc<parking_lot::lock_api::Mutex<parking_lot::RawMutex, Option<LobbyId>>>>,
 }
 
-#[derive(Resource)]
-pub struct SteamSingleClient {
-    pub steam: Arc<Mutex<lightyear::prelude::steamworks::SingleClient>>,
-}
-
 pub struct ExampleServerPlugin {
     pub just_server: bool,
     pub server_crossbeam: Option<CrossbeamIo>,
     pub client_recieve_commands: Option<Receiver<ClientCommands>>,
     pub server_send_commands: Option<Sender<ServerCommands>>,
     pub steam: Option<lightyear::prelude::steamworks::Client>,
-    pub wrapped_single_client: Option<Arc<Mutex<lightyear::prelude::steamworks::SingleClient>>>,
 }
+#[derive(Resource)]
+pub struct NonSendMark;
 
 #[derive(Resource)]
 pub struct Global {
@@ -77,9 +75,9 @@ impl Plugin for ExampleServerPlugin {
         let server_entity = app
             .world_mut()
             .spawn((
-                NetcodeServer::new(NetcodeConfig::default()),
+                // NetcodeServer::new(NetcodeConfig::default()),
                 LocalAddr(SERVER_ADDR),
-                ServerUdpIo::default(),
+                // ServerUdpIo::default(),
             ))
             .id();
 
@@ -89,24 +87,19 @@ impl Plugin for ExampleServerPlugin {
             just_server: self.just_server,
         });
 
-        if self.steam.is_some() && self.wrapped_single_client.is_some() {
+        if self.steam.is_some() {
             info!("Setting up Steamworks for server connection");
 
             let steam = self.steam.clone().unwrap();
 
             steam.networking_utils().init_relay_network_access();
 
-            let wrapped_single_client = self.wrapped_single_client.clone().unwrap();
-
             app.insert_resource(SteamworksClient(steam.clone()));
 
-            let resource = SteamSingleClient {
-                steam: wrapped_single_client.clone(),
-            };
-            app.insert_resource(resource);
             app.add_systems(
                 PreUpdate,
-                steam_callbacks.run_if(in_state(MultiplayerState::Server)),
+                steam_callbacks.run_if(in_state(MultiplayerState::Server)), // .after(clear_recv_buffers), // .before(IoSet::Poll)
+                                                                            // .before(LinkSet::Receive),
             );
 
             // If the server is using Steamworks, we need to add the SteamServerIo component
@@ -117,16 +110,17 @@ impl Plugin for ExampleServerPlugin {
                     config: SessionConfig::default(),
                 });
         }
-
-        if self.client_recieve_commands.is_some() {
-            app.add_crossbeam_event(self.client_recieve_commands.clone().unwrap().clone());
-            app.add_observer(handle_server_started);
-        }
-        if self.server_send_commands.is_some() {
-            app.insert_resource(ServerCommandSender {
-                server_commands: self.server_send_commands.clone().unwrap().clone(),
-            });
-            app.add_systems(FixedUpdate, handle_client_commands);
+        if !self.just_server {
+            if self.client_recieve_commands.is_some() {
+                app.add_crossbeam_event(self.client_recieve_commands.clone().unwrap().clone());
+                app.add_observer(handle_server_started);
+            }
+            if self.server_send_commands.is_some() {
+                app.insert_resource(ServerCommandSender {
+                    server_commands: self.server_send_commands.clone().unwrap().clone(),
+                });
+                app.add_systems(FixedUpdate, handle_client_commands);
+            }
         }
 
         // app.add_systems(OnEnter(GameState::Game), init.run_if(in_state(MultiplayerState::Server).or(in_state(MultiplayerState::HostServer))));
@@ -164,14 +158,15 @@ fn talk_to_me(server_q: Query<(Entity, Has<RemoteId>, Has<ReplicationSender>), W
     // }
 }
 
-fn steam_callbacks(steam: ResMut<SteamSingleClient>, server_q: Query<Entity, With<Started>>) {
+fn steam_callbacks(server_q: Query<Entity, With<Started>>, steam: Res<SteamworksClient>) {
     if server_q.is_empty() {
         // If the server is not started, we don't need to run the callbacks
         return;
     }
     // This system is responsible for running the Steamworks callbacks
     // It should be run every frame to ensure that the Steamworks API works correctly
-    steam.steam.lock().run_callbacks();
+    steam.run_callbacks();
+    // steam.steam.lock().run_callbacks();
 }
 
 pub fn start_server(

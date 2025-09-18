@@ -23,7 +23,7 @@ pub(crate) const MAX_VELOCITY: f32 = 200.0;
 pub(crate) const WALL_SIZE: f32 = 350.0;
 pub const SERVER_REPLICATION_INTERVAL: Duration = Duration::from_millis(100);
 pub const SERVER_ADDR: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 5000);
-pub const FIXED_TIMESTEP_HZ: f64 = 64.0;
+pub const FIXED_TIMESTEP_HZ: f64 = 60.0;
 
 #[derive(Clone)]
 pub struct SharedPlugin {

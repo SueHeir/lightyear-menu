@@ -2,7 +2,6 @@
 use crate::networking::protocol::{
     BallMarker, BulletHitEvent, BulletMarker, PhysicsBundle, Player, PlayerActions,
 };
-use crate::networking::server::SteamSingleClient;
 use crate::networking::shared::*;
 use crate::{ClientCommands, ClientConfigInfo, GameState, MultiplayerState, ServerCommands};
 use avian2d::prelude::Collider;
@@ -32,7 +31,6 @@ pub struct ExampleClientPlugin {
     pub client_sender_commands: Option<crossbeam_channel::Sender<ClientCommands>>,
     pub server_receive_commands: Option<crossbeam_channel::Receiver<ServerCommands>>,
     pub steam: Option<lightyear::prelude::steamworks::Client>,
-    pub wrapped_single_client: Option<Arc<Mutex<lightyear::prelude::steamworks::SingleClient>>>,
 }
 
 const CLIENT_ADDR: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 4000);
@@ -50,21 +48,15 @@ impl Plugin for ExampleClientPlugin {
         app.add_systems(OnEnter(GameState::Menu), setup_steam_callbacks);
         app.add_crossbeam_event(self.server_receive_commands.clone().unwrap());
 
-        if self.steam.is_some() && self.wrapped_single_client.is_some() {
+        if self.steam.is_some() {
             info!("Setting up Steamworks for client connection");
 
             let steam = self.steam.clone().unwrap();
 
             steam.networking_utils().init_relay_network_access();
 
-            let wrapped_single_client = self.wrapped_single_client.clone().unwrap();
-
             app.insert_resource(SteamworksClient(steam.clone()));
 
-            let resource = SteamSingleClient {
-                steam: wrapped_single_client.clone(),
-            };
-            app.insert_resource(resource);
             app.add_systems(PreUpdate, steam_callbacks);
         }
 
@@ -99,7 +91,7 @@ impl Plugin for ExampleClientPlugin {
     }
 }
 
-fn steam_callbacks(steam: ResMut<SteamSingleClient>, client_config: Res<ClientConfigInfo>) {
+fn steam_callbacks(client_config: Res<ClientConfigInfo>, steam: Res<SteamworksClient>) {
     // This system is responsible for running the Steamworks callbacks
     // It should be run every frame to ensure that the Steamworks API works correctly
     if client_config.seperate_mode {
@@ -107,7 +99,7 @@ fn steam_callbacks(steam: ResMut<SteamSingleClient>, client_config: Res<ClientCo
         return;
     }
 
-    steam.steam.lock().run_callbacks();
+    steam.run_callbacks();
 }
 
 pub fn esc_to_disconnect(
@@ -272,11 +264,7 @@ fn client_connect(
                     steam_id: client_config.steam_connect_to.unwrap().0,
                     virtual_port: 4001,
                 },
-                config: SessionConfig {
-                    timeout_initial: Duration::from_secs(10),
-                    timeout_connected: Duration::from_secs(10),
-                    ..Default::default()
-                },
+                config: SessionConfig::default(),
             },
             RemoteId(PeerId::Steam(
                 client_config.steam_connect_to.unwrap().0.raw(),
